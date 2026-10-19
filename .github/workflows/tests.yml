@@ -17,8 +17,10 @@ jobs:
         with:
           node-version: '22'
       - name: Python syntax
-        run: python -m py_compile engine.py scan.py server.py
+        run: python -m py_compile engine.py scan.py server.py storage.py
       - name: Unit tests
         run: python -m unittest discover -s tests -v
       - name: Browser script syntax
         run: node --check web/app.js
+      - name: Isolated HTTP smoke
+        run: python tests/smoke_http.py

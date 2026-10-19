@@ -1,70 +1,71 @@
-# VOIDSCAN
+# VOIDSCAN 2.0
 
-VOIDSCAN is a local-first Facebook share and comment audit dashboard. It imports authorized CSV exports, identifies repeat records by Profile ID within a class, visualizes class totals, and supports human review. It DOES NOT claim to prove an account is fake.
+**Facebook engagement intelligence, not a fake-account oracle.**
 
-## Start on Windows
+VOIDSCAN is a local-first open-source research preview. It accepts a Facebook post link, identifies what evidence can be accessed through permissioned Meta APIs or user-supplied fresh exports, surfaces explainable patterns, and records limited scan metadata in a private SQLite database. It never invents interaction counts or asserts that a specific account is fake.
 
-1. Install Python 3.10+ (Python 3.12 is supported).
-2. Open PowerShell in the repository folder and run: python server.py
-3. Open http://localhost:3000 in your browser. Or double-click start-voidscan.bat.
+## Current status
 
-The application uses Python standard libraries and plain JavaScript. By design the HTTP server binds to 127.0.0.1 and is intended ONLY for local single-user access.
+- Clean baseline. No historic CSV records are shipped, automatically loaded, or referenced by the application.
+- One-click URL Scan with source and access disclosures.
+- Optional Meta Page comments via Graph API (access token and Page permissions required; not yet end-to-end validated with a live token).
+- Comment repetition review signals and descriptive one-minute activity peaks. Coordination/identity classification model is **not** implemented.
+- Optional **new** CSV import from authorized sources, for local audit purposes only.
+- SQLite history (90-day retention); saves aggregated counts and signal descriptions, not user names, profile IDs or raw comment bodies.
+- Local-only server on 127.0.0.1. This is not a production internet-facing service.
+- GitHub Actions unit tests on each push.
 
-## How to scan a Facebook post URL
+## Start (Windows, Python 3.10+)
 
-Paste a facebook.com post or reel URL in the Scan panel on the overview page.
+Open PowerShell inside the repository:
 
-- LOCAL CSV MODE: If the post matches a Source URL in already imported exports, VOIDSCAN reports the records, duplicates by Profile ID and missing identifiers in the local file. This is not a live refresh.
-- PERMISSIONED META MODE: If you have Meta Page access and the correct privileges, set the META_PAGE_ACCESS_TOKEN environment variable before starting the server. VOIDSCAN then tries Graph API v26.0 to retrieve available comments (up to 300) and detect repeated texts and unusual timing bursts. API permissions and resource accessibility vary by Page and post type. Meta may refuse the request.
-- WITHOUT DATA: If no matching local exports or authorized Graph access exist, VOIDSCAN explains that the scan cannot proceed. A URL alone does not disclose all shares, likers, commenters or personal account details.
-
-PowerShell example for your own Meta Page:
-    $env:META_PAGE_ACCESS_TOKEN = "REPLACE_WITH_YOUR_OWN_PAGE_TOKEN"
     python server.py
 
-The token stays server-side. Do not enter your Facebook password or use an account cookie.
+Or run start-voidscan.bat. Open http://localhost:3000 . No dependency installation is needed.
 
-## CSV importer
+To start using a Page access token (only if you control/are authorized to analyze that Page):
 
-Under Nguon du lieu, import one or more CSV exports with Profile Name and Profile ID columns. Supported layouts include comma-delimited files and semicolon-delimited files with a preamble. Imports and decisions are saved only in the local data directory (ignored by Git).
+    $env:META_PAGE_ACCESS_TOKEN = "YOUR_PAGE_TOKEN"
+    python server.py
 
-- Same profile ID repeated in the same class: duplicate record. This can result from multiple legitimate shares or repeated exports.
-- Same profile ID shared across different classes: cross-class activity, not automatically suspicious.
-- Same profile name but different IDs: treated as separate identities.
-- Missing profile ID: insufficient data, not a fake-account finding.
+Do not paste tokens into the UI, commit them to GitHub, or share them. Set the environment variable only in the server process and rotate any previously embedded API keys. Graph API v26.0 requires permissions and application approval depending on the type of post and task. Having a valid token alone does not prove permission to read a target post.
 
-The manual review workflow supports Keep / Exclude decisions and filtering. Report CSV exports preserve evidence metadata; originals remain unchanged.
+## What happens when you press Scan?
 
-## Tests
+1. Validate that the URL is HTTPS to a recognized facebook.com host.
+2. If configured, try a read-only Graph API request for comments available to the authorized Page token (limited sample). Never log into someone's personal account or access private reactors.
+3. If Graph API does not provide evidence, try matching this URL against fresh, explicitly imported authorized exports.
+4. If neither source has evidence, return **Unavailable / insufficient data** with the reason.
+5. Preserve a local summary in the scan-history database. Raw comments and account details are not included in persistent scan history.
 
-    python -m unittest discover -s tests -v
-    node --check web/app.js
-    python -m py_compile server.py engine.py scan.py
-
-## Repository and privacy
-
-The original one-off research scripts are excluded from the repository because the legacy Apify script contained an embedded API credential. You must REVOKE and ROTATE that credential in your Apify account; Git does not remove copies from existing local files or earlier transfers.
-
-This repository is public. Do not add .env, local data, CSV exports, spreadsheets, access tokens or personally identifying data. The provided .gitignore excludes these by default.
+A Facebook link alone cannot reveal all individual likes, shares or authenticities. Comment timestamps and repeated content may be perfectly legitimate; they are only screening signals. No fixed threshold can diagnose fake users with certainty.
 
 ## Architecture
 
-- server.py — dependency-free local HTTP server and JSON API
-- engine.py — CSV normalization, same-class deduplication and summaries
-- scan.py — local post URL matching, authorized Meta Graph API comments and screening signals
-- web/index.html, app.css, app.js — responsive dashboard
-- tests/ — parser, data safety, scan and validation tests
+- server.py — local HTTP JSON API, strict local-only binding.
+- scan.py — URL validation and permissioned Meta comments adapter, evidence signals.
+- engine.py — optional new CSV import/normalization and duplicate evidence, never an authenticity classifier.
+- storage.py — SQLite scan history, 90-day retention and data minimization.
+- web/ — responsive dependency-free HTML/CSS/JS dashboard.
+- tests/ — fast unit tests, Windows-compatible DB cleanup.
+- docs/RESEARCH.md — peer-reviewed literature, limitations and research roadmap.
+- .github/workflows/tests.yml — automated CI checks.
 
-## Research sources (for methods, NOT plug-and-play Facebook bot classifiers)
+Application state lives exclusively under data/ and is ignored by Git. CSV files, .env files, Excel exports, previous scripts, access tokens and local caches are never committed.
 
-- QUT Digital Observatory Coordination Network Toolkit: https://github.com/QUT-Digital-Observatory/coordination-network-toolkit (MIT). Network coactivity methods can be adapted to Facebook with suitable event data.
-- CooRTweet: https://github.com/nicolarighetti/CooRTweet . Detects coordinated sharing networks, historically Twitter-oriented; requires underlying event data.
-- OSoMe Botometer Python: https://github.com/osome-iu/botometer-python (MIT). Twitter/X API client; not a Facebook detector.
-- facebook-scraper: https://github.com/kevinzg/facebook-scraper (MIT). Scraping library, not a fake engagement model; verify maintenance and Meta access rules before using.
-- Recent small projects sometimes demonstrate Isolation Forest and DBSCAN on synthetic social media data, but metrics on synthetic datasets are NOT validation of Facebook performance.
+## Running tests
 
-None of these projects can reliably label every Facebook reaction as genuine or fake. Treat duplicate text, timing bursts and unusual coordination as human-review signals only.
+    python -m unittest discover -s tests -v
+    python -m py_compile server.py scan.py engine.py storage.py
+    node --check web/app.js
 
-## Limitations and future work
+## Supported current inputs
 
-The current URL scan cannot access arbitrary personal posts, private engagements or all reactions. A public-facing service will need authentication, abuse protection, data retention controls, stronger API permission handling and explicit security review before deployment.
+- Facebook URL in the browser, for example a public Page post or reel.
+- Optional fresh Facebook share CSV exports with Profile Name and Profile ID fields; they are not essential to run the app and must be collected lawfully.
+
+## Scope and security
+
+This build is for one authorized user on their own computer. It is not safe to expose the local HTTP server directly to the internet. For a hosted product you would need authentication, stronger upload validation, threat modeling, secret management, rate limiting, provenance verification, independent adjudication, informed privacy controls and legal access reviews.
+
+Research and code references: [RESEARCH](docs/RESEARCH.md). Particularly relevant are Yang et al. (2025) on Facebook coordinated link sharing, Graham et al. (2024) on directed coordination networks, Cresci et al. (2017) on digital DNA, and Wang et al. (2012) on expert human review.

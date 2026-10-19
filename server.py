@@ -15,10 +15,11 @@ from urllib.parse import parse_qs, urlsplit
 
 from engine import analyze, parse_export, safe_csv_cell
 from scan import scan
+import storage
 
 ROOT = Path(__file__).resolve().parent
 ASSETS = ROOT / "web"
-DATA = ROOT / "data"
+DATA = Path(os.environ.get("VOIDSCAN_DATA_DIR", str(ROOT / "data"))).resolve()
 IMPORTS = DATA / "imports"
 REVIEWS = DATA / "reviews.json"
 PORT = int(os.environ.get("VOIDSCAN_PORT", "3000"))
@@ -33,7 +34,7 @@ def load():
     DATA.mkdir(exist_ok=True)
     IMPORTS.mkdir(exist_ok=True, parents=True)
     with state_lock:
-        analysis = analyze(ROOT / "danh sách shares", IMPORTS)
+        analysis = analyze(DATA / "sources", IMPORTS)
         try:
             reviews = json.loads(REVIEWS.read_text(encoding="utf-8")) if REVIEWS.exists() else {}
             if not isinstance(reviews, dict):
@@ -117,6 +118,26 @@ class Handler(BaseHTTPRequestHandler):
         u = urlsplit(self.path)
         args = parse_qs(u.query)
         try:
+            if u.path == "/api/status":
+                return self.json({"stats": storage.stats(), "history": storage.list_scans(8),
+                                  "connectors": {"meta": bool(os.environ.get("META_PAGE_ACCESS_TOKEN", "").strip()),
+                                                 "csv_import": True},
+                                  "data_policy": "history_aggregates_only", "retention_days": 90})
+            if u.path == "/api/scans":
+                return self.json({"items": storage.list_scans(100)})
+            if u.path.startswith("/api/scans/"):
+                item = storage.get_scan(u.path.split("/")[-1])
+                return self.json(item) if item else self.json({"error": "Scan not found"}, 404)
+            if u.path == "/api/export-history.csv":
+                output = io.StringIO(newline="")
+                writer = csv.writer(output)
+                writer.writerow(["Scan ID", "Created UTC", "Facebook URL", "Source",
+                                 "Status", "Evidence items", "Signals"])
+                for r in storage.list_scans(None):
+                    writer.writerow([safe_csv_cell(r[k]) for k in (
+                        "id","created_at","post_url","source","status","evidence_count","signal_count")])
+                return self.respond(200, ("\ufeff" + output.getvalue()).encode("utf-8"),
+                                    "text/csv; charset=utf-8", "voidscan-history.csv")
             if u.path == "/api/health":
                 return self.json({"ok": True, "app": "VOIDSCAN", "network": "local-only"})
             if u.path == "/api/overview":
@@ -174,7 +195,8 @@ class Handler(BaseHTTPRequestHandler):
                 with state_lock:
                     records_snapshot = list(analysis["records"])
                 result = scan(data.get("url", ""), records_snapshot)
-                return self.json(result)
+                stored = storage.persist_scan(data.get("url", ""), result)
+                return self.json({**result, "scan_id": stored["id"], "scanned_at": stored["created_at"]})
             if u.path == "/api/review":
                 data = self.body_json()
                 record_id, decision = str(data.get("id", "")), data.get("decision")
@@ -225,5 +247,7 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     load()
+    storage.initialize()
+    storage.purge_expired(90)
     print(f"VOIDSCAN ready: http://localhost:{PORT}  |  records: {analysis['counts']['total']}  |  classes: {analysis['counts']['classes']}", flush=True)
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()

@@ -53,7 +53,8 @@ def local_match(url, records):
         except ValueError:
             continue
         if (ref["post_id"] and ref["post_id"] == other["post_id"]) or (
-            ref["path"] == other["path"] and ref["path"] not in ("", "/")):
+            ref["path"] == other["path"] and
+            any(prefix in ref["path"] for prefix in ("/posts/", "/reel/", "/videos/", "/permalink/"))):
             result.append(rec)
     if not result:
         return None
@@ -66,11 +67,14 @@ def local_match(url, records):
         "classes": classes, "class": classes[0] if len(classes) == 1 else "",
         "signals": [
             {"label": "Trùng Profile ID trong cùng lớp", "count": sum(x["duplicate"] for x in result),
-             "explanation": "Lặp định danh trong một lớp; không phải bằng chứng tài khoản ảo."},
+             "explanation": "Lặp định danh trong một lớp; không phải bằng chứng tài khoản ảo.",
+             "level": "review" if any(x["duplicate"] for x in result) else "info"},
             {"label": "Bản ghi thiếu Profile ID", "count": sum(not x["has_identity"] for x in result),
-             "explanation": "Không có định danh để đối chiếu; cần rà soát thủ công."},
+             "explanation": "Không có định danh để đối chiếu; cần rà soát thủ công.",
+             "level": "info"},
             {"label": "Xuất hiện ở nhiều lớp", "count": sum(x["cross_class"] for x in result),
-             "explanation": "Có thể là người thật chia sẻ nhiều bài; không tự động loại."}
+             "explanation": "Có thể là người thật chia sẻ nhiều bài; không tự động loại.",
+             "level": "info"}
         ],
         "examples": [
             {"name": x["name"] or "(không tên)", "class": x["class"],
@@ -102,9 +106,11 @@ def flags(comments):
         max_burst = max(max_burst, right - left + 1)
     signals = [
         {"label": "Bình luận lặp nguyên văn", "count": duplicated_count,
-         "explanation": "Ít nhất 3 bình luận có cùng nội dung từ 8 ký tự trở lên; có thể là hành vi bình thường."},
+         "explanation": "Ít nhất 3 bình luận có cùng nội dung từ 8 ký tự trở lên; có thể là hành vi bình thường.",
+         "level": "review" if duplicated_count else "info"},
         {"label": "Mật độ bình luận cao nhất / 60 giây", "count": max_burst,
-         "explanation": "Mật độ cao chỉ là tín hiệu cần kiểm tra, không đủ kết luận là bot."}
+         "explanation": "Mật độ cao chỉ là mô tả, không đủ kết luận là bot hoặc gian lận.",
+         "level": "info"}
     ]
     return signals, duplicated_count
 
