@@ -20,6 +20,7 @@ from meta_pages import MetaAccessError, managed_pages, public_pages, page_posts,
 import storage
 import reaction_collector
 import reaction_history
+import reaction_context
 from reaction_assessment import assess
 from research_baselines import compare
 from share_resolver import resolve_shortlink
@@ -214,6 +215,11 @@ class Handler(BaseHTTPRequestHandler):
                                           "message":"Link được phân giải nhưng đối tượng không khớp ảnh/bài được Page trả về."})
                 except MetaAccessError as exc:
                     return self.json({"status":"unavailable","error":exc.public()})
+            if u.path == "/api/reactions/context":
+                pid=args.get("page_id",[""])[0]
+                oid=args.get("object_id",[""])[0]
+                return self.json({"items":reaction_context.listing(pid,oid),
+                                  "context_is_unverified":True})
             if u.path == "/api/reactions/report":
                 pid = args.get("page_id", [""])[0]
                 oid = args.get("object_id", [""])[0]
@@ -223,8 +229,15 @@ class Handler(BaseHTTPRequestHandler):
                 ) or len(oid) > 64:
                     raise ValueError("ID Page/ảnh không hợp lệ.")
                 records = reaction_history.history(pid, oid, 500)
-                return self.json({"assessment": assess(records, kind),
-                                  "r1_research_comparison": compare(records, kind),
+                context_events=reaction_context.listing(pid,oid)
+                primary=assess(records,kind)
+                research=compare(records,kind)
+                primary["intervals"]=reaction_context.overlaps(primary["intervals"],context_events)
+                research["examples"]=reaction_context.overlaps(research["examples"],context_events)
+                return self.json({"assessment": primary,
+                                  "r1_context_events": context_events,
+                                  "r1_context_is_unverified": True,
+                                  "r1_research_comparison": research,
                                   "observations": [
                                      {"observed_at": r["observed_at"],
                                       "value": r["counts"].get(kind)}
@@ -352,6 +365,17 @@ class Handler(BaseHTTPRequestHandler):
                     entry["watch_id"]=reaction_history.watch(page_id,post_id,obj_id)
                     entry["poll_interval_seconds"]=REACTION_POLL_SECONDS
                 return self.json(entry)
+            if u.path == "/api/reactions/context":
+                data=self.body_json()
+                action=data.get("action","add")
+                if action=="add":
+                    eid=reaction_context.add(data)
+                    return self.json({"created":True,"id":eid},201)
+                if action=="remove":
+                    removed=reaction_context.remove(data.get("id"),
+                        data.get("page_id"),data.get("object_id"))
+                    return self.json({"deleted":removed},200 if removed else 404)
+                raise ValueError("Thao tác bối cảnh không hợp lệ")
             if u.path == "/api/reactions/toggle":
                 data=self.body_json()
                 if data.get("active") not in (True,False):

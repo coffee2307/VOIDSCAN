@@ -73,6 +73,30 @@ def main():
             assert comparison["automatic_deduction"] == 0
             assert len(comparison["method_results"])==3
             assert report["observations"] == []
+            assert report["r1_context_events"] == []
+            annotation=post_json(base+"/api/reactions/context",{
+                "action":"add",
+                "page_id":"123456789",
+                "object_id":"123456789",
+                "event_type":"organizer_announcement",
+                "start_utc":"2026-10-20T00:00:00+00:00",
+                "end_utc":"2026-10-20T01:00:00+00:00",
+                "evidence_ref":"NOTICE-01",
+                "note":"Thông báo bình chọn đã được đăng."
+            })
+            assert annotation["created"] is True
+            stored=get_json(base+"/api/reactions/context?page_id=123456789&object_id=123456789")
+            assert stored["context_is_unverified"] is True
+            assert len(stored["items"])==1
+            report_with_context=get_json(base+"/api/reactions/report?page_id=123456789&object_id=123456789&type=LOVE")
+            assert len(report_with_context["r1_context_events"])==1
+            assert report_with_context["assessment"]["automatic_deduction"]==0
+            removed=post_json(base+"/api/reactions/context",{
+                "action":"remove","id":annotation["id"],
+                "page_id":"123456789","object_id":"123456789"
+            })
+            assert removed["deleted"] is True
+            assert not get_json(base+"/api/reactions/context?page_id=123456789&object_id=123456789")["items"]
             empty_reactions=get_json(base+"/api/reactions/history?page_id=123456789&object_id=123456789&type=LOVE")
             assert empty_reactions["snapshots"]==[]
             assert empty_reactions["authoritative_bot_count"] is None

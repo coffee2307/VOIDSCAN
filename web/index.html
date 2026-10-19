@@ -57,7 +57,20 @@
     <div id="verdict" class="verdict" role="status"></div>
     <div class="result-bottom"><div class="chart-section"><div class="split-title"><h3>Diễn biến reaction</h3><span id="sample-count" class="muted"></span></div><div id="trend-chart" class="chart-placeholder">Chưa có lịch sử để vẽ biểu đồ.</div></div><div class="action-section"><h3>Theo dõi và bằng chứng</h3><p>Thu thập mỗi 10 phút khi VOIDSCAN đang chạy. Có thể dừng bất kỳ lúc nào.</p><button id="watch-btn" class="btn secondary full" type="button">Bật theo dõi định kỳ</button><button id="export-btn" class="btn quiet full" type="button">Xuất số liệu CSV ↗</button><small id="watch-note" class="field-help"></small></div></div>
     <details class="evidence-details"><summary>Chi tiết những khoảng thời gian bị gắn cờ</summary><div id="flagged-intervals"></div></details>
-    <details class="evidence-details"><summary>R1 · Đối chiếu ba phương pháp thống kê (thử nghiệm)</summary><div id="r1-baselines"></div></details>
+    <details class="evidence-details" id="context-panel">
+      <summary>R1 · Bối cảnh tăng reaction (chia sẻ, quảng cáo, kêu gọi bình chọn)</summary>
+      <p class="field-help">Ghi lại hoạt động hợp lệ bạn biết để người kiểm duyệt đối chiếu với các đợt tăng bất thường. Thông tin tự nhập không phải bằng chứng tự động xác nhận mọi reaction là thật.</p>
+      <form id="context-form" class="context-form">
+        <label for="context-type">Loại hoạt động</label>
+        <select id="context-type" required><option value="organizer_announcement">Ban tổ chức kêu gọi bình chọn</option><option value="creator_share">Người sáng tạo/cộng đồng chia sẻ</option><option value="paid_advertisement">Chạy quảng cáo</option><option value="media_coverage">Báo chí/người nổi tiếng đề cập</option><option value="other_known_event">Sự kiện khác</option></select>
+        <label for="context-start">Bắt đầu (giờ địa phương)</label><input id="context-start" type="datetime-local" required>
+        <label for="context-end">Kết thúc (giờ địa phương)</label><input id="context-end" type="datetime-local" required>
+        <label for="context-reference">Mã tài liệu đối chiếu (không bắt buộc)</label><input id="context-reference" maxlength="120" placeholder="VD: CAMPAIGN-01, NOTE-02">
+        <label for="context-note">Ghi chú (không chứa dữ liệu cá nhân)</label><textarea id="context-note" rows="2" maxlength="500" placeholder="Hoạt động đã diễn ra, ai phê duyệt, nguồn xác minh..."></textarea>
+        <button class="btn secondary" id="context-save" type="submit">Lưu bối cảnh cho ảnh này</button>
+      </form>
+      <div id="context-list" class="context-list"></div>
+    </details>
    </section>
    <div id="activity-message" class="activity-message" role="status" aria-live="polite">Chọn Page và nhấn “Quét & phân tích” để bắt đầu.</div>
   </section>

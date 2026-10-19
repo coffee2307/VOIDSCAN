@@ -49,6 +49,10 @@ The browser has a collapsed report section **R1 · Đối chiếu ba phương ph
 
 No Page/photo was automatically selected as a monitored contest entry by Phase R1. Users must choose the specific Page/object and enable watch in the UI. Observe Meta API rate limits and data minimization obligations.
 
+## Next research milestone — R1.5
+
+The local interface now accepts time-bounded operator context for each photo, and the offline replay tool recomputes four frozen event-level flags from independently reviewed aggregate series rather than trusting a manually-entered prediction. See [R1.5 methodology](R1_FALSE_POSITIVE_REPLAY.md). This does not validate bot accounts or suppress statistical warnings.
+
 ## Validation protocol for real events
 
 R1 unit tests and simulated spikes test code behavior only. **They cannot estimate true precision, recall, or false-positive rate on Facebook.**

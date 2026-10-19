@@ -65,6 +65,8 @@ def compare(points, kind="LOVE"):
     agree = 0
     disagreements = 0
     flagged_details = []
+    last_interval_evaluated = False
+    last_interval_flags = []
     for before, after in zip(rows, rows[1:]):
         t0 = parse_utc(before.get("observed_at"))
         t1 = parse_utc(after.get("observed_at"))
@@ -90,6 +92,9 @@ def compare(points, kind="LOVE"):
                 for m in METHODS
             }
             flag_count = sum(flags.values())
+            if after is rows[-1]:
+                last_interval_evaluated = True
+                last_interval_flags = [m for m in METHODS if flags[m]]
             agree += flag_count >= 2
             disagreements += 0 < flag_count < len(METHODS)
             if flag_count:
@@ -118,6 +123,8 @@ def compare(points, kind="LOVE"):
         "method_results": {m: {"name": DISPLAY[m], **summary[m]} for m in METHODS},
         "multi_method_agreement_intervals": agree,
         "disagreement_intervals": disagreements,
+        "last_interval_evaluated": last_interval_evaluated,
+        "last_interval_flags": last_interval_flags,
         "examples": flagged_details[-100:],
         "bot_probability_pct": None,
         "confirmed_fake_reactions": None,

@@ -44,6 +44,11 @@ class InterfaceTests(unittest.TestCase):
         self.assertIn("quality.eligible_adjacent_intervals",js)
         self.assertIn("quality.long_gaps",js)
         self.assertIn("renderR1Comparison",js)
+        self.assertIn("renderContext",js)
+        self.assertIn('id="context-form"',(WEB/"index.html").read_text(encoding="utf-8"))
+        self.assertIn('id="context-list"',(WEB/"index.html").read_text(encoding="utf-8"))
+        self.assertIn("/api/reactions/context",js)
+        self.assertIn("context_event_ids",js)
         self.assertIn("Đồng thuận KHÔNG đồng nghĩa xác suất gian lận",js)
         self.assertNotIn("Math.random(",js)
 

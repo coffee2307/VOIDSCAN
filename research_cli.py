@@ -10,6 +10,7 @@ import reaction_history
 from reaction_collector import REACTIONS
 from research_quality import audit_series
 from research_validation import evaluate
+from research_replay import replay
 
 
 def audit_local(path=None):
@@ -53,6 +54,8 @@ def main(argv=None):
     a.add_argument("--db",help="Local SQLite file; default VOIDSCAN DB")
     ev=sub.add_parser("evaluate",help="Held-out research evaluation using external labels")
     ev.add_argument("--input",required=True,help="JSON document of independently reviewed events")
+    rep=sub.add_parser("replay",help="Recompute frozen R1 flags from independent event snapshots")
+    rep.add_argument("--input",required=True,help="JSON reviewed event histories, outside Git")
     args=p.parse_args(argv)
     try:
         if args.cmd=="audit":
@@ -61,7 +64,8 @@ def main(argv=None):
             path=Path(args.input)
             if path.stat().st_size > 4_000_000:
                 raise ValueError("Label file too large")
-            result=evaluate(json.loads(path.read_text(encoding="utf-8")))
+            document=json.loads(path.read_text(encoding="utf-8"))
+            result=replay(document) if args.cmd=="replay" else evaluate(document)
         print(json.dumps(result,ensure_ascii=True,indent=2,sort_keys=True))
         return 0
     except (ValueError,OSError,KeyError,json.JSONDecodeError) as exc:

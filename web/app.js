@@ -161,6 +161,7 @@ async function loadReport(target=state.target){
  if(quality.stale)verdict.append(el("p","","Lần quan sát mới nhất đã cũ. Cần quét lại để cập nhật tổng reaction."));
  plot(data.observations||[]);intervals(a.intervals||[]);
  renderR1Comparison(data.r1_research_comparison);
+ renderContext(data.r1_context_events||[]);
  await syncWatch();
  $("result").scrollIntoView({behavior:"smooth",block:"start"});
 }
@@ -181,12 +182,70 @@ function renderR1Comparison(data){
  root.append(el("p","field-help","Đồng thuận từ 2/3 phương pháp: "+nf(data.multi_method_agreement_intervals)+" khoảng. Đồng thuận KHÔNG đồng nghĩa xác suất gian lận. Các phương pháp cùng đọc một chuỗi reaction, nên không cung cấp bằng chứng độc lập."));
  root.append(el("p","field-help","Phần tăng vượt baseline chỉ là ước tính thống kê, không phải số tài khoản ảo hay lượt cần trừ."));
 }
+const CONTEXT_KINDS={
+ organizer_announcement:"Ban tổ chức kêu gọi bình chọn",
+ creator_share:"Người sáng tạo/cộng đồng chia sẻ",
+ paid_advertisement:"Quảng cáo có trả phí",
+ media_coverage:"Báo chí/người nổi tiếng nhắc đến",
+ other_known_event:"Sự kiện khác được ghi nhận"
+};
+function renderContext(events){
+ const root=$("context-list");root.replaceChildren();
+ if(!events.length){root.append(el("p","empty","Chưa có bối cảnh nào được ghi nhận cho ảnh/bài này."));return}
+ for(const e of events){
+  const block=el("div","context-event");
+  const body=el("div");
+  body.append(el("strong","",CONTEXT_KINDS[e.event_type]||"Sự kiện được ghi nhận"));
+  const start=new Date(e.start_utc),end=new Date(e.end_utc);
+  body.append(el("p","",start.toLocaleString("vi-VN")+" – "+end.toLocaleString("vi-VN")));
+  if(e.evidence_ref)body.append(el("p","","Mã bằng chứng: "+e.evidence_ref));
+  if(e.note)body.append(el("p","",e.note));
+  const del=el("button","btn secondary small","Xóa");
+  del.type="button";
+  del.addEventListener("click",async()=>{
+   if(!state.target||!confirm("Xóa ghi chú bối cảnh này?"))return;
+   del.disabled=true;
+   try{
+    await req("/api/reactions/context",{method:"POST",body:JSON.stringify({
+      action:"remove",id:e.id,page_id:state.page,object_id:state.target.objectId
+    })});
+    await loadReport(state.target);
+    notice("Đã xóa bối cảnh, cảnh báo thống kê được giữ nguyên.");
+   }catch(err){notice(err.message,true);del.disabled=false}
+  });
+  block.append(body,del);root.append(block);
+ }
+}
+async function saveContext(event){
+ event.preventDefault();
+ if(!state.target){notice("Hãy quét một ảnh trước khi ghi bối cảnh.",true);return}
+ const start=$("context-start").value,end=$("context-end").value;
+ if(!start||!end){notice("Hãy nhập thời gian bắt đầu và kết thúc.",true);return}
+ const a=new Date(start),b=new Date(end);
+ if(!Number.isFinite(a.getTime())||!Number.isFinite(b.getTime())||b<=a){
+  notice("Khoảng thời gian bối cảnh không hợp lệ.",true);return
+ }
+ const btn=$("context-save");btn.disabled=true;
+ try{
+  await req("/api/reactions/context",{method:"POST",body:JSON.stringify({
+   action:"add",page_id:state.page,object_id:state.target.objectId,
+   event_type:$("context-type").value,
+   start_utc:a.toISOString(),end_utc:b.toISOString(),
+   evidence_ref:$("context-reference").value.trim(),
+   note:$("context-note").value.trim()
+  })});
+  $("context-note").value="";$("context-reference").value="";
+  await loadReport(state.target);
+  notice("Đã lưu bối cảnh tại máy. Chưa có bằng chứng xác minh từng tài khoản.");
+ }catch(err){notice(err.message,true)}
+ finally{btn.disabled=false}
+}
 function intervals(values){
  const root=$("flagged-intervals");root.replaceChildren();const flagged=values.filter(x=>x.flagged);
  if(!flagged.length){root.append(el("p","empty","Chưa có khoảng tăng trưởng đủ điều kiện gắn cờ."));return}
  flagged.forEach(x=>{const row=el("div","evidence-row");
   row.append(el("span","",x.from.replace("T"," ").slice(0,16)+" → "+x.to.replace("T"," ").slice(0,16)+" UTC"),
-             el("strong","",nf(x.delta)+" lượt tăng · "+x.per_minute+"/phút"));
+             el("strong","",nf(x.delta)+" lượt tăng · "+x.per_minute+"/phút"+(x.context_event_ids?.length?" · Có bối cảnh tự ghi nhận":"")));
   root.append(row);
  });
 }
@@ -253,6 +312,7 @@ async function loadHistory(){
   if(!scans.children.length)scans.append(el("p","empty","Chưa có lịch sử quét bài đăng."));
  }catch(e){notice(e.message,true)}
 }
+$("context-form").addEventListener("submit",saveContext);
 $("page-select").addEventListener("change",pageChanged);
 $("choose-photos").addEventListener("click",()=>listSource("photos"));
 $("choose-posts").addEventListener("click",()=>listSource("posts"));
