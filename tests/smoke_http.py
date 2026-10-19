@@ -58,6 +58,17 @@ def main():
                 raise AssertionError("Unowned page should not be returned")
             except urllib.error.HTTPError as exc:
                 assert exc.code == 403
+            unavailable_photo=get_json(base+"/api/reactions/photos?page_id=123456789")
+            assert unavailable_photo["status"]=="unavailable"
+            empty_reactions=get_json(base+"/api/reactions/history?page_id=123456789&object_id=123456789&type=LOVE")
+            assert empty_reactions["snapshots"]==[]
+            assert empty_reactions["authoritative_bot_count"] is None
+            try:
+                post_json(base+"/api/reactions/snapshot",{
+                    "page_id":"123456789","post_id":"123456789","object_id":"123456789"})
+                raise AssertionError("Unowned Page should be refused")
+            except urllib.error.HTTPError as exc:
+                assert exc.code==403
             initial = get_json(base + "/api/status")
             assert initial["stats"]["scans"] == 0
             assert initial["connectors"]["meta"] is False

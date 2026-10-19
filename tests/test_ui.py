@@ -22,6 +22,9 @@ class InterfaceTests(unittest.TestCase):
         self.assertIn('lang="vi"', html)
         self.assertIn('name="viewport"', html)
         self.assertIn('id="theme-toggle"', html)
+        self.assertIn('id="reaction-object"', html)
+        self.assertIn('id="reaction-watch"', html)
+        self.assertIn('id="load-page-photos"', html)
 
     def test_offline_vietnamese_font_stack(self):
         css = (WEB / "app.css").read_text(encoding="utf-8")

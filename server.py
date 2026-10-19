@@ -8,6 +8,7 @@ import logging
 import mimetypes
 import os
 import threading
+import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -17,6 +18,10 @@ from engine import analyze, parse_export, safe_csv_cell
 from scan import scan
 from meta_pages import MetaAccessError, managed_pages, public_pages, page_posts, configured_mode
 import storage
+import reaction_collector
+import reaction_history
+from share_resolver import resolve_shortlink
+from scan import reference, validate_url
 
 ROOT = Path(__file__).resolve().parent
 ASSETS = ROOT / "web"
@@ -24,6 +29,7 @@ DATA = Path(os.environ.get("VOIDSCAN_DATA_DIR", str(ROOT / "data"))).resolve()
 IMPORTS = DATA / "imports"
 REVIEWS = DATA / "reviews.json"
 PORT = int(os.environ.get("VOIDSCAN_PORT", "3000"))
+REACTION_POLL_SECONDS = max(300,min(3600,int(os.environ.get("VOIDSCAN_REACTION_INTERVAL_SECONDS","600"))))
 HOST = "127.0.0.1"
 BODY_LIMIT = 25 * 1024 * 1024
 state_lock = threading.RLock()
@@ -88,7 +94,7 @@ def overview():
         return result
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "VOIDSCAN/2.1"
+    server_version = "VOIDSCAN/2.3"
     def log_message(self, fmt, *args):
         logging.info("%s - %s", self.address_string(), fmt % args)
 
@@ -148,6 +154,93 @@ class Handler(BaseHTTPRequestHandler):
                                       **page_posts(pages[selected])})
                 except MetaAccessError as exc:
                     return self.json({"status":"error","error":exc.public()}, 502)
+
+            if u.path == "/api/reactions/objects":
+                try:
+                    pid = args.get("page_id", [""])[0]
+                    page = reaction_collector.verify_page(pid)
+                    post, limited = reaction_collector.select_post(
+                        page,post_id=args.get("post_id",[""])[0],
+                        url=args.get("url",[""])[0] or None)
+                    children = reaction_collector.attached_objects(page,post)
+                    return self.json({"status":"ready","post":post,
+                                      "catalog_partial":limited,"attachments":children})
+                except MetaAccessError as exc:
+                    return self.json({"status":"unavailable","error":exc.public()})
+            if u.path == "/api/reactions/photos":
+                try:
+                    page_id=args.get("page_id",[""])[0]
+                    page=reaction_collector.verify_page(page_id)
+                    return self.json({"status":"ready","page_id":page_id,
+                                      **reaction_collector.page_photos(page)})
+                except MetaAccessError as exc:
+                    return self.json({"status":"unavailable","error":exc.public()})
+
+            if u.path == "/api/reactions/resolve-share":
+                page_id=args.get("page_id",[""])[0]
+                raw_url=args.get("url",[""])[0]
+                validate_url(raw_url)
+                try:
+                    page=reaction_collector.verify_page(page_id)
+                    resolved=resolve_shortlink(raw_url)
+                    if resolved.get("status")=="unresolved":
+                        return self.json(resolved)
+                    target_url=resolved["url"]
+                    ref=reference(target_url)
+                    photo_id=ref.get("post_id")
+                    if photo_id:
+                        try:
+                            matched,_=reaction_collector.verify_photo(page,photo_id)
+                            return self.json({"status":"ready","kind":"photo",
+                                              "object_id":matched["id"],
+                                              "post_id":matched["id"],
+                                              "url":target_url,
+                                              "verified_source":"verified_page_photo"})
+                        except MetaAccessError:
+                            pass
+                    try:
+                        post,_=reaction_collector.select_post(page,url=target_url)
+                        return self.json({"status":"ready","kind":"post",
+                                          "object_id":post["id"],"post_id":post["id"],
+                                          "url":target_url,"verified_source":"page_posts"})
+                    except MetaAccessError:
+                        return self.json({"status":"unresolved","url":target_url,
+                                          "message":"Link được phân giải nhưng đối tượng không khớp ảnh/bài được Page trả về."})
+                except MetaAccessError as exc:
+                    return self.json({"status":"unavailable","error":exc.public()})
+            if u.path == "/api/reactions/history":
+                pid = args.get("page_id", [""])[0]
+                oid = args.get("object_id", [""])[0]
+                kind = args.get("type", ["LOVE"])[0].upper()
+                if not (reaction_collector.PAGE_ID.fullmatch(pid) if hasattr(reaction_collector,"PAGE_ID") else
+                        pid.isdigit()) or not oid or len(oid)>64:
+                    raise ValueError("ID không hợp lệ")
+                records = reaction_history.history(pid,oid)
+                return self.json({"snapshots": records,
+                     "analysis":reaction_history.anomaly_report(records,kind),
+                     "scope":"aggregate_only","authoritative_bot_count":None})
+            if u.path == "/api/reactions/watches":
+                return self.json({"items":reaction_history.watch_list(),
+                                  "interval_seconds":REACTION_POLL_SECONDS,
+                                  "server_must_remain_online":True})
+            if u.path == "/api/reactions/export.csv":
+                pid = args.get("page_id", [""])[0]
+                oid = args.get("object_id", [""])[0]
+                if not pid.isdigit() or len(pid)>30 or not oid or len(oid)>64:
+                    raise ValueError("ID không hợp lệ")
+                recs=reaction_history.history(pid,oid,500)
+                buffer=io.StringIO(newline="")
+                writer=csv.writer(buffer)
+                writer.writerow(["UTC","Page ID","Post ID","Object ID","Object type",
+                                 "LIKE (incl. CARE)","LOVE","WOW","HAHA","SAD","ANGRY",
+                                 "Source","Status"])
+                for item in recs:
+                    counts=item["counts"]
+                    writer.writerow([item["observed_at"],pid,item["post_id"],oid,
+                         item["object_type"], *[(counts.get(k) if counts.get(k) is not None else "")
+                         for k in reaction_collector.REACTIONS],"meta_graph_api",item["status"]])
+                return self.respond(200, ("\ufeff"+buffer.getvalue()).encode("utf-8"),
+                    "text/csv; charset=utf-8", "voidscan-reaction-evidence.csv")
             if u.path == "/api/scans":
                 return self.json({"items": storage.list_scans(100)})
             if u.path.startswith("/api/scans/"):
@@ -215,6 +308,31 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/reload":
                 load()
                 return self.json(overview())
+
+            if u.path == "/api/reactions/snapshot" or u.path == "/api/reactions/watch":
+                data=self.body_json()
+                page_id=str(data.get("page_id",""))
+                post_id=str(data.get("post_id",""))
+                obj_id=str(data.get("object_id") or post_id)
+                entry=reaction_collector.collect_once(page_id, post_id, obj_id)
+                snapshot_id=reaction_history.store_observation(entry)
+                entry["snapshot_id"]=snapshot_id
+                if u.path == "/api/reactions/watch":
+                    if not snapshot_id:
+                        return self.json({"error":"Meta chưa trả về số reaction hợp lệ; chưa thể theo dõi tự động.","result":entry},422)
+                    existing=reaction_history.watch_list()
+                    if len([x for x in existing if x["active"]])>=5 and not any(
+                        x["page_id"]==page_id and x["object_id"]==obj_id for x in existing):
+                        return self.json({"error":"Tối đa 5 đối tượng được theo dõi tự động."},409)
+                    entry["watch_id"]=reaction_history.watch(page_id,post_id,obj_id)
+                    entry["poll_interval_seconds"]=REACTION_POLL_SECONDS
+                return self.json(entry)
+            if u.path == "/api/reactions/toggle":
+                data=self.body_json()
+                if data.get("active") not in (True,False):
+                    raise ValueError("Trạng thái không hợp lệ")
+                updated=reaction_history.set_watch(str(data.get("id","")),data["active"])
+                return self.json({"updated":updated},200 if updated else 404)
             if u.path == "/api/scan":
                 data = self.body_json()
                 with state_lock:
@@ -263,16 +381,34 @@ class Handler(BaseHTTPRequestHandler):
                 return self.json({"ok": True, "files": len(checked),
                                   "rows": sum(n for _, _, n in checked), "overview": overview()})
             return self.json({"error": "Not found"}, 404)
+        except MetaAccessError as exc:
+            return self.json({"error":exc.public()["message"],"detail":exc.public()},403)
         except (ValueError, TypeError, KeyError) as exc:
             return self.json({"error": str(exc)}, 400)
         except Exception:
             logging.exception("POST failed")
             return self.json({"error": "Lỗi máy chủ"}, 500)
 
+def reaction_monitor_loop():
+    # Never collect when the server is not configured with a token.
+    # The thread stops with the local server process; it is not a cloud service.
+    while True:
+        time.sleep(REACTION_POLL_SECONDS)
+        if configured_mode()=="none":
+            continue
+        try:
+            outcome=reaction_history.poll_active_once()
+            if outcome:
+                logging.info("Reaction monitor: %d tracked objects checked",len(outcome))
+        except Exception:
+            logging.exception("Reaction monitor failed")
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     load()
     storage.initialize()
     storage.purge_expired(90)
+    reaction_history.ensure()
+    threading.Thread(target=reaction_monitor_loop, daemon=True, name="reaction-monitor").start()
     print(f"VOIDSCAN ready: http://localhost:{PORT}  |  records: {analysis['counts']['total']}  |  classes: {analysis['counts']['classes']}", flush=True)
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()

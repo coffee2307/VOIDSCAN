@@ -1,4 +1,4 @@
-# VOIDSCAN 2.0
+# VOIDSCAN 2.3 — Reaction Intelligence Research Preview
 
 **Facebook engagement intelligence, not a fake-account oracle.**
 
@@ -17,6 +17,7 @@ VOIDSCAN is a local-first open-source research preview. It accepts a Facebook po
 - Local-only server on 127.0.0.1. This is not a production internet-facing service.
 - Vietnamese-first responsive interface using local Windows Segoe UI fonts (no external font dependency), high-contrast light theme by default and an optional dark theme. The theme toggle is available in the top-right corner and remembered locally.
 - GitHub Actions unit tests on each push.
+- **Reaction Intelligence (experimental):** authorized Page post and photo reaction counts, timestamped SQLite observations, 10-minute local monitor for up to 5 objects, audit CSV export and review-only anomaly screening. It does not infer the number of bot accounts or automatically deduct votes. See [Reaction Integrity Audit](docs/REACTION_AUDIT.md).
 
 ## Start (Windows, Python 3.10+)
 
@@ -50,6 +51,9 @@ A Facebook link alone cannot reveal all individual likes, shares or authenticiti
 - server.py — local HTTP JSON API, strict local-only binding.
 - scan.py — URL validation and permissioned Meta comments adapter, evidence signals.
 - meta_pages.py — read-only Page discovery, authorized post listing, and fail-closed Page ownership verification.
+- reaction_collector.py — Page post and Photo ID validation, authorized reactions summaries.
+- reaction_history.py — SQLite aggregate snapshots, local monitoring and conservative anomaly detection.
+- share_resolver.py — public Facebook /share redirects (HEAD only; no login/cookies).
 - engine.py — optional new CSV import/normalization and duplicate evidence, never an authenticity classifier.
 - storage.py — SQLite scan history, 90-day retention and data minimization.
 - web/ — responsive dependency-free HTML/CSS/JS dashboard.

@@ -53,6 +53,7 @@ async function loadManagedPages(){
     else if(choices.length===2)picker.value=choices[1];
     const isReady=data.status==="ready"&&picker.options.length>1;
     $("load-page-posts").disabled=!isReady;
+    $("load-page-photos").disabled=!isReady;
     const note=data.error?.message||data.message||"Không có Page khả dụng.";
     text("page-access-note",note);
     text("page-diagnostics",isReady?"Meta đã trả về "+(picker.options.length-1)+" Page hợp lệ. Token chỉ lưu trong tiến trình server.":note);
@@ -60,6 +61,7 @@ async function loadManagedPages(){
   }catch(e){
     picker.replaceChildren(new Option("Lỗi kết nối Meta",""));
     $("load-page-posts").disabled=true;
+    $("load-page-photos").disabled=true;
     text("page-access-note",e.message);
     text("page-diagnostics",e.message);
   }finally{
@@ -86,6 +88,8 @@ async function showManagedPosts(){
       control.type="button";
       control.addEventListener("click",()=>{
         $("scan-url").value=item.url;
+        selectedReactionPost=item.id;
+        loadReactionObjects().catch(e=>reactionStatus(e.message,true));
         $("scan-url").focus();
         text("page-access-note","Đã chọn bài thuộc Page. Nhấn Scan để kiểm tra.");
       });
@@ -97,6 +101,7 @@ async function showManagedPosts(){
 $("managed-page").addEventListener("change",()=>{
   $("page-posts").replaceChildren();
   $("load-page-posts").disabled=!$("managed-page").value;
+  $("load-page-photos").disabled=!$("managed-page").value;
 });
 $("check-meta-pages").addEventListener("click",loadManagedPages);
 $("load-page-posts").addEventListener("click",showManagedPosts);
@@ -126,3 +131,252 @@ loadManagedPages();
     try{localStorage.setItem(key,next)}catch(_){}
   });
 })();
+
+/* Reaction Intelligence: evidence and aggregate monitoring, never actor attribution. */
+let selectedReactionPost=null;
+let currentReactionWatchId=null;
+let reactionTargets=[];
+let lastReactionSnapshot=null;
+const reactionLabels={LIKE:"👍 Like (+ Care có thể gộp)",LOVE:"❤️ Love",WOW:"😮 Wow",HAHA:"😆 Haha",SAD:"😢 Sad",ANGRY:"😡 Angry"};
+function reactionStatus(message,bad=false){
+ const node=$("reaction-status");
+ node.textContent=message;node.classList.toggle("error",bad);
+}
+function resetReactionUI(){
+ selectedReactionPost=null;currentReactionWatchId=null;reactionTargets=[];lastReactionSnapshot=null;
+ $("reaction-watch").textContent="Bật theo dõi định kỳ";
+ $("reaction-object").replaceChildren(new Option("Chọn một bài đăng trước",""));
+ $("reaction-capture").disabled=true;$("reaction-watch").disabled=true;
+ $("reaction-summary").replaceChildren();$("reaction-trend").replaceChildren();
+ reactionStatus("Chọn Page, nhấn “Xem bài gần đây”, rồi chọn bài để xem các ảnh.");
+}
+$("managed-page").addEventListener("change",resetReactionUI);
+async function loadReactionObjects(){
+ const pageId=$("managed-page").value;
+ if(!pageId){reactionStatus("Hãy chọn Facebook Page có quyền quản trị.",true);return;}
+ if(!selectedReactionPost){
+   const value=$("scan-url").value.trim();
+   if(!value){reactionStatus("Chọn bài từ “Xem bài gần đây” trước khi quét từng ảnh.",true);return;}
+ }
+ reactionStatus("Đang tìm các đối tượng được Meta cấp quyền trong bài đăng...");
+ const q=new URLSearchParams({page_id:pageId});
+ if(selectedReactionPost)q.set("post_id",selectedReactionPost);
+ else q.set("url",$("scan-url").value.trim());
+ try{
+   const data=await api("/api/reactions/objects?"+q);
+   if(data.status!=="ready"){
+     reactionStatus((data.error?.message||"Chưa xác minh được bài đăng.")+" Link /share/ có thể không ánh xạ tự động; hãy chọn bài gốc từ danh sách Page.",true);
+     return;
+   }
+   selectedReactionPost=data.post.id;
+   const targets=[{id:data.post.id,label:"Bài đăng mẹ · "+data.post.id,type:"post"}];
+   const children=data.attachments||{};
+   targets.push(...(children.items||[]).map(x=>({id:x.id,label:"Ảnh/tệp · "+x.label,type:"attachment"})));
+   reactionTargets=targets;
+   const select=$("reaction-object");select.replaceChildren();
+   for(const target of targets)select.add(new Option(target.label,target.id));
+   if(targets.length>1)select.value=targets[1].id;
+   $("reaction-capture").disabled=false;$("reaction-watch").disabled=false;
+   reactionStatus("Đã xác minh bài đăng · "+targets.length+" đối tượng. "+
+      (children.status==="unavailable"?"Meta chưa cho đọc danh sách ảnh đính kèm; có thể thử số liệu bài mẹ. ":"")+
+      "Kết quả reaction từng ảnh chỉ có nếu Meta trả dữ liệu trên chính Photo ID.");
+   await refreshReactionHistory();
+ }catch(e){reactionStatus(e.message,true);}
+}
+async function captureReaction(watching){
+ const pageId=$("managed-page").value, oid=$("reaction-object").value;
+ if(!pageId||!selectedReactionPost||!oid){reactionStatus("Thiếu Page, bài đăng hoặc ảnh đã xác minh.",true);return;}
+ const button=$(watching?"reaction-watch":"reaction-capture");
+ button.disabled=true;reactionStatus("Đang lấy số lượng reaction từ Meta Graph API...");
+ try{
+   const entry=await api(watching?"/api/reactions/watch":"/api/reactions/snapshot",{
+     method:"POST",body:JSON.stringify({page_id:pageId,post_id:selectedReactionPost,object_id:oid})});
+   lastReactionSnapshot=entry;
+   const summary=$("reaction-summary");summary.replaceChildren();
+   for(const [kind,label] of Object.entries(reactionLabels)){
+     const card=el("div",null,"reaction-chip");
+     card.append(el("span",label),el("strong",
+        entry.reaction.counts[kind]===null?"Không có dữ liệu":fmt(entry.reaction.counts[kind])));
+     summary.append(card);
+   }
+   const observed=(entry.reaction.missing||[]).length;
+   reactionStatus(
+     "Đã truy vấn "+entry.object.type+" lúc "+entry.observed_at+
+     ". "+(entry.snapshot_id?"Đã lưu mốc kiểm toán. ":"Không lưu vì thiếu số liệu. ")+
+     (observed?"Meta không cung cấp "+observed+" loại reaction. ":"")+
+     (watching&&entry.watch_id?"Đã bật theo dõi khi server hoạt động, mỗi "+Math.round(entry.poll_interval_seconds/60)+" phút. ":"")+
+     "Không có dữ liệu nhận diện người thả cảm xúc."
+   );
+   await refreshReactionHistory();
+   await syncReactionWatchStatus();
+ }catch(e){reactionStatus(e.message,true);}finally{button.disabled=false;}
+}
+async function refreshReactionHistory(){
+ const pageId=$("managed-page").value,objectId=$("reaction-object").value;
+ if(!pageId||!objectId)return;
+ try{
+   const q=new URLSearchParams({page_id:pageId,object_id:objectId,type:$("reaction-kind").value});
+   const data=await api("/api/reactions/history?"+q);
+   const points=data.snapshots||[];
+   const analysis=data.analysis||{};
+   const target=$("reaction-trend");
+   target.replaceChildren();
+   if(!points.length){
+     target.append(el("p","Chưa có mốc số liệu. Nhấn “Ghi nhận số liệu hiện tại” để bắt đầu.","empty"));
+   }else{
+     const kind=$("reaction-kind").value;
+     const chart=renderReactionPlot(points,kind);
+     if(chart)target.append(chart);
+     const list=el("div",null,"reaction-measurements");
+     for(const snapshot of points.slice(-12).reverse()){
+       const span=el("div",null,"reaction-measurement");
+       span.append(el("span",snapshot.observed_at.replace("T"," ").slice(0,19)+" UTC"),
+                   el("strong",snapshot.counts[kind]===null?"Không có dữ liệu":fmt(snapshot.counts[kind])));
+       list.append(span);
+     }
+     target.append(list);
+   }
+   await syncReactionWatchStatus();
+   $("reaction-foot").textContent=(
+    "Số mốc: "+fmt(points.length)+
+    " · Các khoảng tăng bất thường được gắn cờ: "+fmt(analysis.flagged_intervals||0)+
+    " · Tổng mức tăng ròng trong những khoảng đó: "+fmt(analysis.flagged_net_increase||0)+
+    " · Không phải số bot. Số tự động trừ điểm: 0. "+
+    (analysis.status==="insufficient_history"?"Chưa đủ lịch sử để đánh giá.":"")
+   );
+ }catch(e){reactionStatus(e.message,true);}
+}
+$("reaction-resolve").addEventListener("click",async()=>{
+ const url=$("scan-url").value.trim();
+ const page=$("managed-page").value;
+ if(page&&url&&(/\/share\//i.test(url)||/[?&]fbid=/i.test(url))){
+   reactionStatus("Đang thử phân giải đường dẫn công khai và xác minh ảnh với Page...");
+   try{
+     const value=await api("/api/reactions/resolve-share?"+new URLSearchParams({page_id:page,url}));
+     if(value.status==="ready"){
+       selectedReactionPost=value.post_id;
+       reactionTargets=[{id:value.object_id,type:value.kind,label:"Đã xác minh · "+value.kind+" · "+value.object_id}];
+       $("reaction-object").replaceChildren(new Option(reactionTargets[0].label,value.object_id));
+       $("reaction-capture").disabled=false;
+       $("reaction-watch").disabled=false;
+       reactionStatus("Đã xác minh "+value.kind+" theo "+value.verified_source+
+         ". Đây là số đếm riêng của đối tượng, nếu Meta cấp số liệu.");
+       await refreshReactionHistory();
+     }else{
+       reactionStatus(value.error?.message||value.message||"Không xác minh được link. Hãy dùng Xem ảnh đã đăng.",true);
+     }
+   }catch(e){reactionStatus(e.message,true);}
+ }else{
+   loadReactionObjects().catch(e=>reactionStatus(e.message,true));
+ }
+});
+$("reaction-object").addEventListener("change",()=>{lastReactionSnapshot=null;$("reaction-summary").replaceChildren();refreshReactionHistory()});
+$("reaction-kind").addEventListener("change",refreshReactionHistory);
+$("reaction-capture").addEventListener("click",()=>captureReaction(false));
+$("reaction-watch").addEventListener("click",async()=>{
+ if(!currentReactionWatchId)return captureReaction(true);
+ const button=$("reaction-watch");
+ button.disabled=true;
+ try{
+   await api("/api/reactions/toggle",{
+     method:"POST",body:JSON.stringify({id:currentReactionWatchId,active:false})
+   });
+   reactionStatus("Đã dừng theo dõi định kỳ. Các mốc dữ liệu đã lưu được giữ nguyên.");
+   await syncReactionWatchStatus();
+ }catch(e){reactionStatus(e.message,true);}
+ finally{button.disabled=false;}
+});
+$("reaction-export").addEventListener("click",()=>{
+ const p=$("managed-page").value,o=$("reaction-object").value;
+ if(!p||!o){reactionStatus("Hãy chọn Page và ảnh trước khi xuất báo cáo.",true);return;}
+ location.href="/api/reactions/export.csv?"+new URLSearchParams({page_id:p,object_id:o});
+});
+
+async function showPagePhotos(){
+ const pageId=$("managed-page").value;
+ const area=$("page-posts");
+ area.replaceChildren();
+ if(!pageId){reactionStatus("Chọn Page đã cấp quyền trước.",true);return;}
+ const button=$("load-page-photos");
+ button.disabled=true;
+ text("page-access-note","Đang đọc ảnh đã đăng qua Meta API...");
+ try{
+   const data=await api("/api/reactions/photos?page_id="+encodeURIComponent(pageId));
+   if(data.status!=="ready"){
+     reactionStatus(data.error?.message||"Meta không cho đọc ảnh của Page.",true);
+     return;
+   }
+   const photos=data.items||[];
+   area.append(el("p","Ảnh Page trả về: "+photos.length+
+     (data.partial?" (giới hạn danh sách; có thể còn ảnh cũ).":"")+
+     " · Chọn ảnh để đo reaction riêng. Nếu Meta không trả số đếm, hệ thống sẽ báo không có dữ liệu."));
+   for(const item of photos.slice(0,80)){
+     const control=el("button",(item.created_time||"").slice(0,10)+" · Ảnh "+item.id+" · "+(item.excerpt||""),"post-option");
+     control.type="button";
+     control.addEventListener("click",async()=>{
+       selectedReactionPost=item.id;
+       reactionTargets=[{id:item.id,type:"photo",label:"Ảnh Page · "+item.id}];
+       $("reaction-object").replaceChildren(new Option("Ảnh Page · "+item.id,item.id));
+       $("reaction-capture").disabled=false;
+       $("reaction-watch").disabled=false;
+       if(item.url)$("scan-url").value=item.url;
+       reactionStatus("Đã chọn ảnh được Page cung cấp qua API: "+item.id+
+         ". Nhấn “Ghi nhận số liệu hiện tại”. Chưa thể xác nhận danh tính người thả reaction.");
+       await refreshReactionHistory();
+       $("reaction-panel").scrollIntoView({behavior:"smooth",block:"start"});
+     });
+     area.append(control);
+   }
+   text("page-access-note",photos.length+" ảnh được Meta trả về trong phạm vi yêu cầu.");
+ }catch(e){reactionStatus(e.message,true)}finally{button.disabled=false}
+}
+$("load-page-photos").addEventListener("click",showPagePhotos);
+
+async function syncReactionWatchStatus(){
+ const pageId=$("managed-page").value;
+ const objectId=$("reaction-object").value;
+ if(!pageId||!objectId)return;
+ try{
+   const response=await api("/api/reactions/watches");
+   const active=(response.items||[]).find(x=>
+      x.page_id===pageId&&x.object_id===objectId&&x.active);
+   currentReactionWatchId=active?.id||null;
+   $("reaction-watch").textContent=active?"Dừng theo dõi định kỳ":"Bật theo dõi định kỳ";
+ }catch(_){currentReactionWatchId=null}
+}
+function renderReactionPlot(points,kind){
+ const valid=points.map(p=>({
+     x:Date.parse(p.observed_at),
+     y:p.counts[kind]
+ })).filter(p=>Number.isFinite(p.x)&&Number.isInteger(p.y)&&p.y>=0);
+ if(valid.length<2)return null;
+ const ns="http://www.w3.org/2000/svg";
+ const node=(tag,attrs={})=>{
+   const element=document.createElementNS(ns,tag);
+   for(const [key,value] of Object.entries(attrs))element.setAttribute(key,String(value));
+   return element;
+ };
+ const w=700,h=180,pad=25;
+ const minX=Math.min(...valid.map(v=>v.x)),maxX=Math.max(...valid.map(v=>v.x));
+ const minY=Math.min(...valid.map(v=>v.y)),maxY=Math.max(...valid.map(v=>v.y));
+ const xx=v=>pad+(w-pad*2)*(v.x-minX)/Math.max(1,maxX-minX);
+ const yy=v=>(h-pad)-(h-pad*2)*(v.y-minY)/Math.max(1,maxY-minY);
+ const svg=node("svg",{viewBox:"0 0 700 180",role:"img",
+ "aria-label":"Biểu đồ "+kind+" theo các mốc thu thập, không phản ánh danh tính người tương tác"});
+ const baseline=node("line",{x1:pad,y1:h-pad,x2:w-pad,y2:h-pad,"stroke":"currentColor","stroke-opacity":".2"});
+ svg.append(baseline);
+ const path=node("polyline",{points:valid.map(v=>xx(v)+","+yy(v)).join(" "),
+   fill:"none",stroke:"currentColor","stroke-width":"3",
+   "stroke-linecap":"round","stroke-linejoin":"round"});
+ svg.append(path);
+ for(const item of valid.slice(-30)){
+   svg.append(node("circle",{cx:xx(item),cy:yy(item),r:"3.4",
+       fill:"currentColor"}));
+ }
+ const caption=el("div","Bắt đầu "+new Date(minX).toLocaleString("vi-VN")+
+       " · Giá trị nhỏ nhất "+fmt(minY)+" · Lớn nhất "+fmt(maxY)+
+       " · Kết thúc "+new Date(maxX).toLocaleString("vi-VN"),"reaction-plot-caption");
+ const container=el("div",null,"reaction-chart");
+ container.append(svg,caption);
+ return container;
+}
