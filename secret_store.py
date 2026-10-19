@@ -113,15 +113,63 @@ def clear_meta_user_token(path: Path | None = None) -> bool:
     return False
 
 
+# The encrypted user credential is authoritative by default. Explicit
+# VOIDSCAN_USE_ENV_TOKEN=1 is the only way to opt into a manual env override.
+# A fresh file is picked up by a running server on the next request.
+import threading
+
+_TOKEN_LOCK = threading.RLock()
+_LAST_TOKEN_FILE_STATE = object()
+_LOADED_FROM_STORE = False
+
+def synchronize_meta_token() -> bool:
+    """Reload an updated DPAPI token without echoing it or restarting the server.
+
+    Return True only when a newly saved token was loaded into process memory.
+    A mere environment token is fallback when no DPAPI token exists.
+    """
+    global _LAST_TOKEN_FILE_STATE, _LOADED_FROM_STORE
+    if os.environ.get("VOIDSCAN_USE_ENV_TOKEN") == "1":
+        return False
+    with _TOKEN_LOCK:
+        path = token_path()
+        try:
+            stat = path.stat()
+            marker = (str(path), stat.st_mtime_ns, stat.st_size, stat.st_ctime_ns)
+        except FileNotFoundError:
+            marker = None
+        except OSError:
+            raise TokenStoreError("Không kiểm tra được file token mã hóa.") from None
+        if marker == _LAST_TOKEN_FILE_STATE:
+            return False
+        if marker is None:
+            if _LOADED_FROM_STORE:
+                os.environ.pop("META_USER_ACCESS_TOKEN", None)
+                os.environ.pop("META_PAGE_ACCESS_TOKEN", None)
+            _LOADED_FROM_STORE = False
+            _LAST_TOKEN_FILE_STATE = marker
+            return False
+        token = read_meta_user_token(path)
+        if not token:
+            raise TokenStoreError("Không thể đọc token đã lưu.")
+        # Prevent stale inherited User/Page tokens from shadowing the DPAPI one.
+        os.environ.pop("META_PAGE_ACCESS_TOKEN", None)
+        os.environ["META_USER_ACCESS_TOKEN"] = token
+        _LOADED_FROM_STORE = True
+        _LAST_TOKEN_FILE_STATE = marker
+        return True
+
 def load_saved_meta_token_into_process() -> bool:
-    """An explicitly configured process token always takes precedence."""
+    """Backward-compatible startup entrypoint with the same refresh semantics."""
+    return synchronize_meta_token()
+
+def credential_source() -> str:
+    if os.environ.get("VOIDSCAN_USE_ENV_TOKEN") == "1":
+        return "environment_override"
+    if _LOADED_FROM_STORE:
+        return "encrypted_store"
     if os.environ.get("META_USER_ACCESS_TOKEN", "").strip() or os.environ.get(
         "META_PAGE_ACCESS_TOKEN", ""
     ).strip():
-        return False
-    token = read_meta_user_token()
-    if not token:
-        return False
-    # Process-scoped env only: do not write a persistent plaintext env registry key.
-    os.environ["META_USER_ACCESS_TOKEN"] = token
-    return True
+        return "environment_fallback"
+    return "none"

@@ -32,12 +32,55 @@ class TokenStorageTests(unittest.TestCase):
                 ):
                     secret_store.save_meta_user_token(value, Path(d) / "secret.dpapi")
 
-    def test_env_token_has_precedence(self):
-        with patch.dict(os.environ, {"META_USER_ACCESS_TOKEN": "existing",
-                                     "META_PAGE_ACCESS_TOKEN": ""}):
+    def test_explicit_env_override_is_opt_in(self):
+        with patch.dict(os.environ, {
+                "META_USER_ACCESS_TOKEN": "existing",
+                "META_PAGE_ACCESS_TOKEN": "",
+                "VOIDSCAN_USE_ENV_TOKEN": "1",
+            }):
             with patch("secret_store.read_meta_user_token") as read:
                 self.assertFalse(secret_store.load_saved_meta_token_into_process())
                 read.assert_not_called()
+                self.assertEqual(os.environ["META_USER_ACCESS_TOKEN"], "existing")
+
+    def test_encrypted_store_overrides_stale_inherited_user_and_page_tokens(self):
+        with tempfile.TemporaryDirectory() as d:
+            fake_store = Path(d) / "token.dpapi"
+            fake_store.write_bytes(b"synthetic ciphertext")
+            with patch.dict(os.environ, {
+                    "META_USER_ACCESS_TOKEN": "expired",
+                    "META_PAGE_ACCESS_TOKEN": "expired-page",
+                    "VOIDSCAN_USE_ENV_TOKEN": "",
+                }), patch.object(secret_store, "_LAST_TOKEN_FILE_STATE", object()), \
+                patch.object(secret_store, "_LOADED_FROM_STORE", False), \
+                patch("secret_store.token_path", return_value=fake_store), \
+                patch("secret_store.read_meta_user_token", return_value="valid-synthetic") as read:
+                self.assertTrue(secret_store.load_saved_meta_token_into_process())
+                self.assertEqual(os.environ["META_USER_ACCESS_TOKEN"], "valid-synthetic")
+                self.assertNotIn("META_PAGE_ACCESS_TOKEN", os.environ)
+                self.assertEqual(secret_store.credential_source(), "encrypted_store")
+                self.assertFalse(secret_store.synchronize_meta_token())
+                read.assert_called_once_with(fake_store)
+
+    def test_live_server_refreshes_when_token_file_changes(self):
+        with tempfile.TemporaryDirectory() as d:
+            fake_store = Path(d) / "token.dpapi"
+            fake_store.write_bytes(b"first synthetic ciphertext")
+            tokens = iter(["valid-first", "valid-second"])
+            with patch.dict(os.environ, {
+                    "META_USER_ACCESS_TOKEN": "old",
+                    "META_PAGE_ACCESS_TOKEN": "",
+                    "VOIDSCAN_USE_ENV_TOKEN": "",
+                }), patch.object(secret_store, "_LAST_TOKEN_FILE_STATE", object()), \
+                patch.object(secret_store, "_LOADED_FROM_STORE", False), \
+                patch("secret_store.token_path", return_value=fake_store), \
+                patch("secret_store.read_meta_user_token", side_effect=lambda _: next(tokens)):
+                self.assertTrue(secret_store.synchronize_meta_token())
+                self.assertEqual(os.environ["META_USER_ACCESS_TOKEN"], "valid-first")
+                fake_store.write_bytes(b"a newer synthetic ciphertext replacing the old")
+                self.assertTrue(secret_store.synchronize_meta_token())
+                self.assertEqual(os.environ["META_USER_ACCESS_TOKEN"], "valid-second")
+                self.assertFalse(secret_store.synchronize_meta_token())
 
     def test_missing_encrypted_file(self):
         with tempfile.TemporaryDirectory() as d:
@@ -72,8 +115,10 @@ class TokenStorageTests(unittest.TestCase):
                 s.bind(("127.0.0.1", 0))
                 port = s.getsockname()[1]
             env = dict(os.environ)
-            env.pop("META_USER_ACCESS_TOKEN", None)
-            env.pop("META_PAGE_ACCESS_TOKEN", None)
+            # Regression: inherited, expired env tokens must not shadow DPAPI.
+            env["META_USER_ACCESS_TOKEN"] = "EXPIRED_SYNTHETIC_OLD_USER"
+            env["META_PAGE_ACCESS_TOKEN"] = "EXPIRED_SYNTHETIC_OLD_PAGE"
+            env.pop("VOIDSCAN_USE_ENV_TOKEN", None)
             env["LOCALAPPDATA"] = str(local)
             env["VOIDSCAN_DATA_DIR"] = str(base / "isolated-data")
             env["VOIDSCAN_PORT"] = str(port)
@@ -96,6 +141,7 @@ class TokenStorageTests(unittest.TestCase):
                 self.assertIsNotNone(state, "Isolated server did not start")
                 self.assertTrue(state["connectors"]["meta"])
                 self.assertEqual(state["connectors"]["meta_mode"], "user")
+                self.assertEqual(state["connectors"]["credential_source"], "encrypted_store")
                 self.assertNotIn(synthetic, json.dumps(state))
             finally:
                 proc.terminate()

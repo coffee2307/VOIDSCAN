@@ -27,7 +27,9 @@ Nếu chưa có token lưu, start-voidscan.bat sẽ hỏi một lần để lưu
 - File được mã hóa tại **%LOCALAPPDATA%\VOIDSCAN\secrets\meta-user-token.dpapi**.
 - File nằm ngoài F:\VOIDSCAN và ngoài Git repository; không sử dụng .env plaintext.
 - Khi chạy python server.py, mã tự giải mã vào bộ nhớ và thiết lập META_USER_ACCESS_TOKEN chỉ cho tiến trình này.
-- Nếu người dùng cố ý đặt META_USER_ACCESS_TOKEN hoặc META_PAGE_ACCESS_TOKEN trong môi trường tiến trình, biến đó được ưu tiên.
+- **Token DPAPI đã lưu được ưu tiên** so với token cũ kế thừa từ cửa sổ PowerShell. Nếu đang chạy server và lưu token mới, VOIDSCAN tự nhận token mới ở request tiếp theo; không cần dừng server hay nhập lại. Chỉ dùng biến môi trường thủ công khi cố ý đặt `VOIDSCAN_USE_ENV_TOKEN=1`.
+- Không nhập token trong URL trình duyệt hoặc bảng điều khiển web.
+- Các biến `META_USER_ACCESS_TOKEN` hoặc `META_PAGE_ACCESS_TOKEN` chỉ được dùng khi không có file DPAPI, hoặc khi bạn chủ động đặt `VOIDSCAN_USE_ENV_TOKEN=1` để ưu tiên cấu hình thủ công.
 - Token không được in ra console, không lưu trong database, và không gửi về trình duyệt qua API.
 - DPAPI không ngăn mã độc chạy dưới cùng tài khoản Windows. Không chia sẻ quyền đăng nhập Windows.
 
@@ -37,7 +39,7 @@ Meta có thể thu hồi hoặc token có thể hết hạn. Lưu mã hóa chỉ
 
     python manage_token.py set
 
-Dán token mới, khởi động lại server. Không gửi mã token vào cuộc trò chuyện hoặc lên GitHub.
+Dán token mới và bấm Lưu. Server VOIDSCAN đã cập nhật sẽ tự nhận thay đổi khi tải lại trang; không cần khởi động lại. Không gửi mã token vào cuộc trò chuyện hoặc lên GitHub.
 
 ## Kiểm tra, thay thế và xóa
 

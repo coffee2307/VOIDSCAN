@@ -17,7 +17,7 @@ VOIDSCAN is a local-first open-source research preview. It accepts a Facebook po
 - Local-only server on 127.0.0.1. This is not a production internet-facing service.
 - Vietnamese-first responsive interface using local Windows Segoe UI fonts (no external font dependency), high-contrast light theme by default and an optional dark theme. The theme toggle is available in the top-right corner and remembered locally.
 - GitHub Actions unit tests on each push.
-- **One-time encrypted Meta token setup:** paste using a masked Windows dialog (Ctrl+V, right-click Paste, or a dedicated clipboard button); storage uses Windows DPAPI outside Git. `python server.py` loads it automatically. Double-click `start-voidscan.bat` for one-click browser/server launch. See [Token setup](docs/TOKEN_SETUP.md).
+- **One-time encrypted Meta token setup:** paste using a masked Windows dialog (Ctrl+V, right-click Paste, or a dedicated clipboard button); storage uses Windows DPAPI outside Git. The encrypted token takes precedence over stale environment tokens and is hot-reloaded by the running server when updated. Use `VOIDSCAN_USE_ENV_TOKEN=1` for explicit manual-env override. Double-click `start-voidscan.bat` for one-click browser/server launch. See [Token setup](docs/TOKEN_SETUP.md).
 - **Reaction Intelligence (experimental):** authorized Page post and photo reaction counts, timestamped SQLite observations, 10-minute local monitor for up to 5 objects, audit CSV export and review-only anomaly screening. It does not infer the number of bot accounts or automatically deduct votes. See [Reaction Integrity Audit](docs/REACTION_AUDIT.md).
 
 ## Start (Windows, Python 3.10+)

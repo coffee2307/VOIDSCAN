@@ -22,6 +22,7 @@ import reaction_collector
 import reaction_history
 from share_resolver import resolve_shortlink
 from scan import reference, validate_url
+from secret_store import TokenStoreError, synchronize_meta_token, credential_source
 
 ROOT = Path(__file__).resolve().parent
 ASSETS = ROOT / "web"
@@ -125,10 +126,13 @@ class Handler(BaseHTTPRequestHandler):
         u = urlsplit(self.path)
         args = parse_qs(u.query)
         try:
+            if u.path.startswith("/api/"):
+                synchronize_meta_token()
             if u.path == "/api/status":
                 return self.json({"stats": storage.stats(), "history": storage.list_scans(8),
                                   "connectors": {"meta": configured_mode() != "none",
                                                  "meta_mode": configured_mode(),
+                                                 "credential_source": credential_source(),
                                                  "csv_import": True},
                                   "data_policy": "history_aggregates_only", "retention_days": 90})
             if u.path == "/api/meta/pages":
@@ -302,6 +306,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         u = urlsplit(self.path)
         try:
+            synchronize_meta_token()
             origin = self.headers.get("Origin", "")
             if origin and origin not in (f"http://localhost:{PORT}", f"http://127.0.0.1:{PORT}"):
                 return self.json({"error": "Origin không được phép"}, 403)
@@ -394,9 +399,10 @@ def reaction_monitor_loop():
     # The thread stops with the local server process; it is not a cloud service.
     while True:
         time.sleep(REACTION_POLL_SECONDS)
-        if configured_mode()=="none":
-            continue
         try:
+            synchronize_meta_token()
+            if configured_mode()=="none":
+                continue
             outcome=reaction_history.poll_active_once()
             if outcome:
                 logging.info("Reaction monitor: %d tracked objects checked",len(outcome))
@@ -405,7 +411,7 @@ def reaction_monitor_loop():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    from secret_store import TokenStoreError, load_saved_meta_token_into_process
+    from secret_store import load_saved_meta_token_into_process
     try:
         if load_saved_meta_token_into_process():
             logging.info("Meta token mã hóa đã được nạp cho phiên chạy này.")
