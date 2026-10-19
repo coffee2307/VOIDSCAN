@@ -64,6 +64,19 @@ def local_match(url, records):
         "duplicates": sum(x["duplicate"] for x in result),
         "unverified": sum(not x["has_identity"] for x in result),
         "classes": classes, "class": classes[0] if len(classes) == 1 else "",
+        "signals": [
+            {"label": "Trùng Profile ID trong cùng lớp", "count": sum(x["duplicate"] for x in result),
+             "explanation": "Lặp định danh trong một lớp; không phải bằng chứng tài khoản ảo."},
+            {"label": "Bản ghi thiếu Profile ID", "count": sum(not x["has_identity"] for x in result),
+             "explanation": "Không có định danh để đối chiếu; cần rà soát thủ công."},
+            {"label": "Xuất hiện ở nhiều lớp", "count": sum(x["cross_class"] for x in result),
+             "explanation": "Có thể là người thật chia sẻ nhiều bài; không tự động loại."}
+        ],
+        "examples": [
+            {"name": x["name"] or "(không tên)", "class": x["class"],
+             "signal": x["reason"], "profile_id": x["profile_id"]}
+            for x in result if x["duplicate"] or not x["has_identity"]
+        ][:20],
         "message": "Đây là dữ liệu CSV đã nhập, không phải dữ liệu Facebook được thu thập mới. "
                    "Số liệu chỉ phản ánh bản ghi xuất hiện trong các file liên quan."
     }
@@ -135,6 +148,17 @@ def graph_scan(url):
     return {
         "status": "live", "source": "meta_graph_api", "comments": len(comments),
         "suspicious": repeated, "signals": signals,
+        "examples": [
+            {"name": "Comment ID " + str(x.get("id", ""))[:40], "class": "Meta API",
+             "signal": "Nội dung bình luận trùng nguyên văn",
+             "profile_id": str(x.get("message", ""))[:150]}
+            for x in comments
+            if re.sub(r"\s+", " ", str(x.get("message", "")).strip()).casefold() in
+               {message for message, count in Counter(
+                   re.sub(r"\s+", " ", str(c.get("message", "")).strip()).casefold()
+                   for c in comments if 8 <= len(str(c.get("message", ""))) <= 300
+               ).items() if count >= 3}
+        ][:20],
         "message": "Chỉ phân tích các comment mà token được phép đọc (tối đa 300 trên mỗi lần scan). "
                    "Các số liệu không đại diện cho toàn bộ like/share hay danh tính người tương tác; "
                    "mẫu có thể chưa đầy đủ."

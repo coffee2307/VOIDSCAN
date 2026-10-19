@@ -172,7 +172,8 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/scan":
                 data = self.body_json()
                 with state_lock:
-                    result = scan(data.get("url", ""), analysis["records"])
+                    records_snapshot = list(analysis["records"])
+                result = scan(data.get("url", ""), records_snapshot)
                 return self.json(result)
             if u.path == "/api/review":
                 data = self.body_json()
