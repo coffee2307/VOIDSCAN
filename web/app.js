@@ -18,8 +18,8 @@ async function loadHistory(){try{const data=await api("/api/scans");const table=
 function rows(parent,entries){const dl=el("dl");for(const [key,val] of entries){const row=el("div",null,"detail-row");row.append(el("dt",key),el("dd",val==null?"—":val));dl.append(row)}parent.append(dl)}
 async function detail(scanId){try{const r=await api("/api/scans/"+scanId);const box=$("history-detail");box.replaceChildren();rows(box,[["Thời gian UTC",r.created_at],["Đường dẫn",r.post_url],["Trạng thái",labels[r.status]||r.status],["Nguồn",sourceLabels[r.source]||r.source],["Mẫu quan sát",r.evidence_count],["Số loại tín hiệu",r.signal_count],["Lưu ý",r.result.message]]);if(r.result.signals?.length){box.append(el("h3","Tín hiệu được lưu"));renderSignals(box,r.result.signals)}$("history-dialog").showModal()}catch(e){notify(e.message)}}
 function renderSignals(parent,signals){const table=el("table");const header=el("tr");["TÍN HIỆU","SỐ LƯỢNG","DIỄN GIẢI"].forEach(t=>header.append(el("th",t)));table.append(header);for(const x of signals){const tr=el("tr");td(tr,x.label);td(tr,fmt(x.count));td(tr,x.explanation);table.append(tr)}const scroll=el("div",null,"table-scroll");scroll.append(table);parent.append(scroll)}
-function renderResult(data){const box=$("scan-result");box.className="scan-result";$("scan-details").replaceChildren();const parts=[];if(data.status==="live"){parts.push("ĐÃ TRUY CẬP META GRAPH API (MẪU GIỚI HẠN)");parts.push("Bình luận quan sát: "+fmt(data.comments)+" · Comment lặp nguyên văn: "+fmt(data.suspicious));}else if(data.status==="matched"){parts.push("TÌM THẤY DỮ LIỆU MỚI ĐƯỢC NHẬP");parts.push("Bản ghi: "+fmt(data.total)+" · Bản ghi lặp cùng lớp: "+fmt(data.duplicates)+" · Thiếu ID: "+fmt(data.unverified));}else{parts.push("CHƯA THỂ ĐÁNH GIÁ BÀI ĐĂNG");box.classList.add("error")}parts.push(data.message||"Không đủ dữ liệu để đánh giá.");if(data.scan_id)parts.push("Scan ID: "+data.scan_id.slice(0,12));box.textContent=parts.join("\n");if(data.signals?.length){const area=$("scan-details");area.append(el("h2","Tín hiệu quan sát được"));renderSignals(area,data.signals);if(data.examples?.length){area.append(el("h2","Bản ghi gợi ý rà soát (hiển thị tạm thời)"));const table=el("table");for(const item of data.examples.slice(0,20)){const tr=el("tr");td(tr,item.class);td(tr,item.name);td(tr,item.profile_id);td(tr,item.signal);table.append(tr)}const scroll=el("div",null,"table-scroll");scroll.append(table);area.append(scroll)}}}
-async function scan(){const url=$("scan-url").value.trim();if(!url){text("scan-result","Vui lòng nhập URL bài Facebook.");return}const btn=$("scan-button");btn.disabled=true;text("scan-result","Đang xác minh nguồn và thực hiện phân tích...");$("scan-details").replaceChildren();try{const data=await api("/api/scan",{method:"POST",body:JSON.stringify({url})});renderResult(data);await loadStatus();}catch(e){$("scan-result").className="scan-result error";text("scan-result",e.message)}finally{btn.disabled=false}}
+function renderResult(data){const box=$("scan-result");box.className="scan-result";$("scan-details").replaceChildren();const parts=[];if(data.status==="live"){parts.push("ĐÃ TRUY CẬP META GRAPH API (MẪU GIỚI HẠN)");parts.push("Bình luận quan sát: "+fmt(data.comments)+" · Comment lặp nguyên văn: "+fmt(data.suspicious));}else if(data.status==="matched"){parts.push("TÌM THẤY DỮ LIỆU MỚI ĐƯỢC NHẬP");parts.push("Bản ghi: "+fmt(data.total)+" · Bản ghi lặp cùng lớp: "+fmt(data.duplicates)+" · Thiếu ID: "+fmt(data.unverified));}else{parts.push("CHƯA THỂ ĐÁNH GIÁ BÀI ĐĂNG");box.classList.add("error")}parts.push(data.message||"Không đủ dữ liệu để đánh giá.");if(data.page?.name)parts.push("Page: "+data.page.name+" · Đã xác minh nguồn bài viết");if(data.coverage?.comment_sample_capped)parts.push("CẢNH BÁO: API còn trang bình luận chưa đọc, kết quả chỉ là mẫu.");if(data.scan_id)parts.push("Scan ID: "+data.scan_id.slice(0,12));box.textContent=parts.join("\n");if(data.signals?.length){const area=$("scan-details");area.append(el("h2","Tín hiệu quan sát được"));renderSignals(area,data.signals);if(data.examples?.length){area.append(el("h2","Bản ghi gợi ý rà soát (hiển thị tạm thời)"));const table=el("table");for(const item of data.examples.slice(0,20)){const tr=el("tr");td(tr,item.class);td(tr,item.name);td(tr,item.profile_id);td(tr,item.signal);table.append(tr)}const scroll=el("div",null,"table-scroll");scroll.append(table);area.append(scroll)}}}
+async function scan(){const url=$("scan-url").value.trim();if(!url){text("scan-result","Vui lòng nhập URL bài Facebook.");return}const btn=$("scan-button");btn.disabled=true;text("scan-result","Đang xác minh nguồn và thực hiện phân tích...");$("scan-details").replaceChildren();try{const data=await api("/api/scan",{method:"POST",body:JSON.stringify({url,page_id:$("managed-page").value||null})});renderResult(data);await loadStatus();}catch(e){$("scan-result").className="scan-result error";text("scan-result",e.message)}finally{btn.disabled=false}}
 async function importFiles(files){const selected=Array.from(files);if(!selected.length)return;if(selected.length>40||selected.some(x=>!x.name.toLowerCase().endsWith(".csv")||x.size>6*1024*1024)){notify("Chỉ chấp nhận tối đa 40 CSV, mỗi file tối đa 6 MB.");return}if(selected.reduce((a,x)=>a+x.size,0)>18*1024*1024){notify("Tổng dung lượng mỗi lần nhập không quá 18 MB.");return}text("upload-feedback","Đang nhập dữ liệu mới...");try{const out=[];for(const file of selected){const raw=new Uint8Array(await file.arrayBuffer());let binary="";for(let i=0;i<raw.length;i+=16384)binary+=String.fromCharCode(...raw.slice(i,i+16384));out.push({name:file.name,content:btoa(binary)})}const response=await api("/api/import",{method:"POST",body:JSON.stringify({files:out})});text("upload-feedback","Đã nhập "+response.files+" file và "+fmt(response.rows)+" bản ghi mới. Quay lại trang Scan để đối chiếu.");notify("Nhập thành công")}catch(e){text("upload-feedback",e.message)}finally{$("file-picker").value=""}}
 document.querySelectorAll("[data-view]").forEach(x=>x.addEventListener("click",()=>{goto(x.dataset.view);if(x.dataset.view==="history")loadHistory()}));
 document.querySelectorAll("[data-goto]").forEach(x=>x.addEventListener("click",()=>{goto(x.dataset.goto);if(x.dataset.goto==="history")loadHistory()}));
@@ -31,3 +31,73 @@ $("select-files").addEventListener("click",()=>$("file-picker").click());
 $("file-picker").addEventListener("change",e=>importFiles(e.target.files).catch(x=>notify(x.message)));
 const drop=$("upload-card");["dragover","dragenter"].forEach(name=>drop.addEventListener(name,e=>{e.preventDefault();drop.classList.add("dragging")}));["drop","dragleave"].forEach(name=>drop.addEventListener(name,e=>{e.preventDefault();drop.classList.remove("dragging")}));drop.addEventListener("drop",e=>importFiles(e.dataTransfer.files).catch(x=>notify(x.message)));
 loadStatus();
+
+/* Managed Page connector: only metadata crosses the browser boundary. */
+let pageRefreshInProgress=false;
+async function loadManagedPages(){
+  if(pageRefreshInProgress)return;
+  pageRefreshInProgress=true;
+  const button=$("check-meta-pages");
+  button.disabled=true;
+  const picker=$("managed-page");
+  const oldSelection=picker.value;
+  text("page-access-note","Đang xác minh với Meta...");
+  try{
+    const data=await api("/api/meta/pages");
+    picker.replaceChildren(new Option("Chọn Facebook Page",""));
+    for(const page of data.pages||[]){
+      if(/^\d+$/.test(page.id))picker.add(new Option(page.name+" · "+page.id,page.id));
+    }
+    const choices=Array.from(picker.options).map(opt=>opt.value);
+    if(choices.includes(oldSelection))picker.value=oldSelection;
+    else if(choices.length===2)picker.value=choices[1];
+    const isReady=data.status==="ready"&&picker.options.length>1;
+    $("load-page-posts").disabled=!isReady;
+    const note=data.error?.message||data.message||"Không có Page khả dụng.";
+    text("page-access-note",note);
+    text("page-diagnostics",isReady?"Meta đã trả về "+(picker.options.length-1)+" Page hợp lệ. Token chỉ lưu trong tiến trình server.":note);
+    if(!isReady)$("page-posts").replaceChildren();
+  }catch(e){
+    picker.replaceChildren(new Option("Không kết nối được Meta",""));
+    $("load-page-posts").disabled=true;
+    text("page-access-note",e.message);
+    text("page-diagnostics",e.message);
+  }finally{
+    pageRefreshInProgress=false;
+    button.disabled=false;
+  }
+}
+async function showManagedPosts(){
+  const pageId=$("managed-page").value;
+  const area=$("page-posts");
+  area.replaceChildren();
+  if(!pageId){text("page-access-note","Chọn một Page được xác minh trước.");return;}
+  $("load-page-posts").disabled=true;
+  text("page-access-note","Đang đọc danh sách bài viết được Meta cho phép...");
+  try{
+    const data=await api("/api/meta/posts?page_id="+encodeURIComponent(pageId));
+    const posts=data.items||[];
+    if(!posts.length){area.append(el("div","Không tìm thấy bài có permalink trong phạm vi Graph API trả về.","empty"));return;}
+    const lead=el("p","Chọn một bài để điền URL vào ô Scan. Hiển thị tối đa "+posts.length+" bài gần đây"+(data.partial?"; có thể còn những bài khác.":"."));
+    area.append(lead);
+    for(const item of posts.slice(0,25)){
+      if(!item.url)continue;
+      const control=el("button",(item.created_time||"").slice(0,10)+" · "+(item.excerpt||item.id),"post-option");
+      control.type="button";
+      control.addEventListener("click",()=>{
+        $("scan-url").value=item.url;
+        $("scan-url").focus();
+        text("page-access-note","Đã chọn bài thuộc Page. Nhấn Scan để kiểm tra.");
+      });
+      area.append(control);
+    }
+    text("page-access-note",posts.length+" bài đọc được từ Meta Page.");
+  }catch(e){text("page-access-note",e.message)}finally{$("load-page-posts").disabled=false;}
+}
+$("managed-page").addEventListener("change",()=>{
+  $("page-posts").replaceChildren();
+  $("load-page-posts").disabled=!$("managed-page").value;
+});
+$("check-meta-pages").addEventListener("click",loadManagedPages);
+$("load-page-posts").addEventListener("click",showManagedPosts);
+loadManagedPages();

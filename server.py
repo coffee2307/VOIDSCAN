@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from engine import analyze, parse_export, safe_csv_cell
 from scan import scan
+from meta_pages import MetaAccessError, managed_pages, public_pages, page_posts, configured_mode
 import storage
 
 ROOT = Path(__file__).resolve().parent
@@ -87,7 +88,7 @@ def overview():
         return result
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "VOIDSCAN/1.0"
+    server_version = "VOIDSCAN/2.1"
     def log_message(self, fmt, *args):
         logging.info("%s - %s", self.address_string(), fmt % args)
 
@@ -120,9 +121,33 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if u.path == "/api/status":
                 return self.json({"stats": storage.stats(), "history": storage.list_scans(8),
-                                  "connectors": {"meta": bool(os.environ.get("META_PAGE_ACCESS_TOKEN", "").strip()),
+                                  "connectors": {"meta": configured_mode() != "none",
+                                                 "meta_mode": configured_mode(),
                                                  "csv_import": True},
                                   "data_policy": "history_aggregates_only", "retention_days": 90})
+            if u.path == "/api/meta/pages":
+                if configured_mode() == "none":
+                    return self.json({"status":"unconfigured","mode":"none","pages":[],
+                                      "message":"Chưa cấu hình token Meta trên server."})
+                try:
+                    pages = managed_pages()
+                    return self.json({"status":"ready" if pages else "no_pages",
+                                      "mode":configured_mode(), "pages":public_pages(pages),
+                                      "message":"Đã xác minh danh sách Page qua Meta." if pages else "Token chưa cấp quyền truy cập Page."})
+                except MetaAccessError as exc:
+                    return self.json({"status":"error","mode":configured_mode(),
+                                      "pages":[],"error":exc.public()})
+            if u.path == "/api/meta/posts":
+                selected = args.get("page_id", [""])[0]
+                try:
+                    pages = managed_pages()
+                    if selected not in pages:
+                        return self.json({"status":"error",
+                                          "error":MetaAccessError("permission").public()}, 403)
+                    return self.json({"status":"ready", "page_id":selected,
+                                      **page_posts(pages[selected])})
+                except MetaAccessError as exc:
+                    return self.json({"status":"error","error":exc.public()}, 502)
             if u.path == "/api/scans":
                 return self.json({"items": storage.list_scans(100)})
             if u.path.startswith("/api/scans/"):
@@ -194,7 +219,7 @@ class Handler(BaseHTTPRequestHandler):
                 data = self.body_json()
                 with state_lock:
                     records_snapshot = list(analysis["records"])
-                result = scan(data.get("url", ""), records_snapshot)
+                result = scan(data.get("url", ""), records_snapshot, data.get("page_id"))
                 stored = storage.persist_scan(data.get("url", ""), result)
                 return self.json({**result, "scan_id": stored["id"], "scanned_at": stored["created_at"]})
             if u.path == "/api/review":

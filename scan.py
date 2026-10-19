@@ -114,76 +114,97 @@ def flags(comments):
     ]
     return signals, duplicated_count
 
-def graph_scan(url):
-    token = os.environ.get("META_PAGE_ACCESS_TOKEN", "").strip()
-    if not token:
-        return None
-    post_id = reference(url)["post_id"]
-    if not post_id:
-        return {"status": "unavailable", "message":
-            "Đã cấu hình Meta API nhưng không suy ra được Post ID từ URL này. "
-            "Hãy thử URL dạng /posts/<id>, /reel/<id> hoặc ?story_fbid=<id>."}
-    # All network calls use a hard-coded host; the input URL is never fetched.
-    endpoint = ("https://graph.facebook.com/" + API_VERSION + "/" + quote(post_id, safe="") +
-                "/comments?fields=id,message,created_time&limit=100")
+def graph_scan(url, page_id=None):
+    """Scan ONLY a post verified through its owner's managed Page posts edge.
+
+    Fail closed on permission and unverified URL ownership. Never fetch input URL.
+    """
+    from meta_pages import MetaAccessError, graph_get, resolve_page_and_post
+    try:
+        page, post, post_list_partial = resolve_page_and_post(url, page_id)
+    except MetaAccessError as exc:
+        result = {"status": "unavailable", "source": "none",
+                  "message": exc.public()["message"],
+                  "diagnostic": exc.public(),
+                  "ownership_verified": False}
+        if exc.kind == "not_found":
+            result["message"] += (
+                " URL phải khớp một bài mà Graph API liệt kê trong danh sách "
+                "bài gần đây của Page đã chọn; Reel và một số định dạng "
+                "khác có thể chưa được hỗ trợ."
+            )
+        return result
+
     comments = []
     cursor = None
-    for _ in range(3):
-        link = endpoint + (("&after=" + quote(cursor, safe="")) if cursor else "")
-        req = Request(link, headers={"Authorization": "Bearer " + token, "Accept": "application/json"})
-        try:
-            with urlopen(req, timeout=14) as response:
-                payload = json.load(response)
-        except HTTPError as exc:
-            try:
-                body = json.loads(exc.read(4096).decode("utf-8"))
-                info = body.get("error", {})
-                code = info.get("code", exc.code)
-            except Exception:
-                code = exc.code
-            return {"status": "unavailable",
-                    "message": f"Meta Graph API từ chối truy cập (mã {code}). "
-                    "Kiểm tra quyền Page, Post ID, phạm vi truy cập của app và thời hạn token."}
-        except (URLError, TimeoutError, ValueError):
-            return {"status": "unavailable", "message": "Không kết nối được Meta Graph API. Hãy kiểm tra mạng và cấu hình."}
-        comments.extend(payload.get("data", []))
-        cursor = (payload.get("paging", {}).get("cursors", {}) or {}).get("after")
-        if not cursor or len(payload.get("data", [])) < 100:
-            break
-    signals, repeated = flags(comments)
+    capped = False
+    try:
+        for page_number in range(3):
+            params = {"fields": "id,message,created_time", "limit": 100}
+            if cursor:
+                params["after"] = cursor
+            payload = graph_get(post["id"] + "/comments", params, page["token"])
+            batch = payload.get("data", [])
+            if not isinstance(batch, list):
+                raise MetaAccessError("response")
+            comments.extend(x for x in batch if isinstance(x, dict))
+            cursor = (payload.get("paging", {}).get("cursors") or {}).get("after")
+            if not cursor or len(batch) < 100:
+                cursor = None
+                break
+        capped = bool(cursor)
+    except MetaAccessError as exc:
+        return {"status": "unavailable", "source": "none",
+                "message": "Đã xác minh bài viết thuộc Page đã chọn, nhưng không đọc được bình luận. "
+                           + exc.public()["message"],
+                "diagnostic": exc.public(), "ownership_verified": True,
+                "page": {"id": page["id"], "name": page["name"]},
+                "post": {"id": post["id"], "url": post["url"]}}
+
+    signals, repeated_count = flags(comments)
+    normalized = [re.sub(r"\s+", " ", str(x.get("message", "")).strip()).casefold()
+                  for x in comments]
+    frequency = Counter(t for t in normalized if 8 <= len(t) <= 300)
+    repeated = {t for t, count in frequency.items() if count >= 3}
+    examples = [
+        {"name": "Mẫu bình luận " + str(index + 1), "class": "Meta API",
+         "signal": "Trùng nội dung, không xác định danh tính",
+         "profile_id": str(comment.get("message", ""))[:150]}
+        for index, comment in enumerate(comments)
+        if normalized[index] in repeated
+    ][:20]
     return {
-        "status": "live", "source": "meta_graph_api", "comments": len(comments),
-        "suspicious": repeated, "signals": signals,
-        "examples": [
-            {"name": "Comment ID " + str(x.get("id", ""))[:40], "class": "Meta API",
-             "signal": "Nội dung bình luận trùng nguyên văn",
-             "profile_id": str(x.get("message", ""))[:150]}
-            for x in comments
-            if re.sub(r"\s+", " ", str(x.get("message", "")).strip()).casefold() in
-               {message for message, count in Counter(
-                   re.sub(r"\s+", " ", str(c.get("message", "")).strip()).casefold()
-                   for c in comments if 8 <= len(str(c.get("message", ""))) <= 300
-               ).items() if count >= 3}
-        ][:20],
-        "message": "Chỉ phân tích các comment mà token được phép đọc (tối đa 300 trên mỗi lần scan). "
-                   "Các số liệu không đại diện cho toàn bộ like/share hay danh tính người tương tác; "
-                   "mẫu có thể chưa đầy đủ."
+        "status": "live", "source": "meta_graph_api",
+        "comments": len(comments), "suspicious": repeated_count,
+        "signals": signals, "examples": examples,
+        "ownership_verified": True,
+        "page": {"id": page["id"], "name": page["name"]},
+        "post": {"id": post["id"], "url": post["url"]},
+        "coverage": {"observed_comments": len(comments),
+                     "comment_sample_capped": capped,
+                     "post_catalog_partial": post_list_partial,
+                     "all_engagement_accessible": False},
+        "message": "Đã xác minh bài viết thuộc Page mà token cho phép quản lý. "
+                   "Chỉ phân tích bình luận được Graph API cung cấp (tối đa 300). "
+                   "Không truy cập được toàn bộ danh tính người like/share hoặc "
+                   "xác định ai là tài khoản giả."
     }
 
-def scan(url, records):
+def scan(url, records, page_id=None):
     reference(url)
-    online = graph_scan(url)
+    has_token = bool(os.environ.get("META_USER_ACCESS_TOKEN", "").strip() or
+                     os.environ.get("META_PAGE_ACCESS_TOKEN", "").strip())
+    online = graph_scan(url, page_id) if has_token else None
     if online and online["status"] == "live":
         return online
     local = local_match(url, records)
     if local:
-        if online and online["status"] == "unavailable":
-            local["message"] += " Meta API hiện chưa truy cập được bài này."
+        if online:
+            local["message"] += " Không lấy được dữ liệu Graph API cho Page đã chọn."
         return local
     return online or {
-        "status": "unavailable",
-        "message": "Không tìm thấy URL này trong dữ liệu đã nhập. Quét bài đăng trực tiếp cần "
-                   "META_PAGE_ACCESS_TOKEN và quyền đọc nội dung Page phù hợp. "
-                   "VOIDSCAN không thể tự truy cập mọi bài Facebook chỉ từ một đường link. "
-                   "Bạn cũng có thể nhập CSV chứa danh sách tương tác qua mục Nguồn dữ liệu."
+        "status": "unavailable", "source": "none",
+        "message": "Chưa cấu hình Meta Page token. Hãy mở Nguồn dữ liệu để xem "
+                   "hướng dẫn kết nối Page bạn quản trị. Không thể quét tương tác "
+                   "mới chỉ từ URL khi thiếu quyền chính thức."
     }

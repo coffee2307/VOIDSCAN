@@ -32,6 +32,8 @@ def main():
         env["VOIDSCAN_DATA_DIR"] = temp
         env["VOIDSCAN_PORT"] = str(port)
         env.pop("META_PAGE_ACCESS_TOKEN", None)
+        env.pop("META_USER_ACCESS_TOKEN", None)
+        env.pop("META_PAGE_ID", None)
         proc = subprocess.Popen(
             [sys.executable, "-u", "server.py"],
             cwd=str(ROOT), env=env,
@@ -49,6 +51,13 @@ def main():
                 except (OSError, ValueError):
                     time.sleep(0.1)
             assert ready, "Server did not start"
+            pages = get_json(base + "/api/meta/pages")
+            assert pages["status"] == "unconfigured" and pages["pages"] == []
+            try:
+                get_json(base + "/api/meta/posts?page_id=123456789")
+                raise AssertionError("Unowned page should not be returned")
+            except urllib.error.HTTPError as exc:
+                assert exc.code == 403
             initial = get_json(base + "/api/status")
             assert initial["stats"]["scans"] == 0
             assert initial["connectors"]["meta"] is False

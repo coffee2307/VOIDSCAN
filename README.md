@@ -8,6 +8,8 @@ VOIDSCAN is a local-first open-source research preview. It accepts a Facebook po
 
 - Clean baseline. No historic CSV records are shipped, automatically loaded, or referenced by the application.
 - One-click URL Scan with source and access disclosures.
+- Managed Page discovery from Meta User token (GET /me/accounts) or explicit Page token + Page ID. Page ownership checked before reading post comments.
+- Page picker and authorized recent-post selection, read-only, with server-only token handling. See [Meta Page setup](docs/META_PAGE_SETUP.md).
 - Optional Meta Page comments via Graph API (access token and Page permissions required; not yet end-to-end validated with a live token).
 - Comment repetition review signals and descriptive one-minute activity peaks. Coordination/identity classification model is **not** implemented.
 - Optional **new** CSV import from authorized sources, for local audit purposes only.
@@ -23,10 +25,12 @@ Open PowerShell inside the repository:
 
 Or run start-voidscan.bat. Open http://localhost:3000 . No dependency installation is needed.
 
-To start using a Page access token (only if you control/are authorized to analyze that Page):
+For a User token that has appropriate Page permissions and tasks:
 
-    $env:META_PAGE_ACCESS_TOKEN = "YOUR_PAGE_TOKEN"
+    $env:META_USER_ACCESS_TOKEN = "YOUR_USER_TOKEN"
     python server.py
+
+For a Page token, also supply META_PAGE_ID. Detailed private setup: [META_PAGE_SETUP.md](docs/META_PAGE_SETUP.md).
 
 Do not paste tokens into the UI, commit them to GitHub, or share them. Set the environment variable only in the server process and rotate any previously embedded API keys. Graph API v26.0 requires permissions and application approval depending on the type of post and task. Having a valid token alone does not prove permission to read a target post.
 
@@ -44,6 +48,7 @@ A Facebook link alone cannot reveal all individual likes, shares or authenticiti
 
 - server.py — local HTTP JSON API, strict local-only binding.
 - scan.py — URL validation and permissioned Meta comments adapter, evidence signals.
+- meta_pages.py — read-only Page discovery, authorized post listing, and fail-closed Page ownership verification.
 - engine.py — optional new CSV import/normalization and duplicate evidence, never an authenticity classifier.
 - storage.py — SQLite scan history, 90-day retention and data minimization.
 - web/ — responsive dependency-free HTML/CSS/JS dashboard.
