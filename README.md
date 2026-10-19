@@ -15,6 +15,7 @@ VOIDSCAN is a local-first open-source research preview. It accepts a Facebook po
 - Optional **new** CSV import from authorized sources, for local audit purposes only.
 - SQLite history (90-day retention); saves aggregated counts and signal descriptions, not user names, profile IDs or raw comment bodies.
 - Local-only server on 127.0.0.1. This is not a production internet-facing service.
+- Vietnamese-first responsive interface using local Windows Segoe UI fonts (no external font dependency), high-contrast light theme by default and an optional dark theme. The theme toggle is available in the top-right corner and remembered locally.
 - GitHub Actions unit tests on each push.
 
 ## Start (Windows, Python 3.10+)

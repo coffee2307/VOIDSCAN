@@ -12,7 +12,7 @@ function goto(name){document.querySelectorAll(".nav-item").forEach(x=>x.classLis
 function td(row,value){const c=el("td");if(value instanceof Node)c.append(value);else c.textContent=String(value);row.append(c);return c}
 function badge(status){const b=el("span",labels[status]||status,"flag "+(status==="unavailable"?"unverified":status==="live"?"keep":""));return b}
 function historyRow(x,summary=false){const tr=el("tr");td(tr,x.created_at.slice(0,19).replace("T"," "));if(!summary){const url=el("span",x.post_url);url.className="history-url";td(tr,url);}td(tr,sourceLabels[x.source]||x.source);td(tr,badge(x.status));td(tr,fmt(x.evidence_count));if(!summary)td(tr,fmt(x.signal_count));tr.tabIndex=0;tr.addEventListener("click",()=>detail(x.id));tr.addEventListener("keydown",e=>{if(e.key==="Enter")detail(x.id)});return tr}
-function renderStatus(data){const m=data.stats||{};for(const k of ["scans","live","flagged","unavailable"])text("metric-"+k,fmt(m[k]));const ready=data.connectors?.meta===true;text("meta-state",ready?"Có token":"Chưa cấu hình");text("meta-state-detail",ready?"Có token — chưa kiểm tra quyền":"Chưa cấu hình token");text("source-explainer",ready?"Đã nhận cấu hình token, nhưng quyền truy cập chỉ được xác minh khi chạy Scan thực tế.":"Chưa thiết lập token Meta Page; chỉ có thể đối chiếu với nguồn mới được bạn nhập.");const history=data.history||[];const recent=$("recent-table");recent.replaceChildren();history.forEach(x=>recent.append(historyRow(x,true)));if(history.length===0){const row=el("tr"),cell=td(row,"Chưa có lượt Scan nào. Hãy nhập URL để bắt đầu.");cell.colSpan=4;cell.className="empty";recent.append(row)}text("live-status", "● LOCAL CONNECTED")}
+function renderStatus(data){const m=data.stats||{};for(const k of ["scans","live","flagged","unavailable"])text("metric-"+k,fmt(m[k]));const ready=data.connectors?.meta===true;text("meta-state",ready?"Có token":"Chưa cấu hình");text("meta-state-detail",ready?"Có token — chưa kiểm tra quyền":"Chưa cấu hình token");text("source-explainer",ready?"Đã nhận cấu hình token, nhưng quyền truy cập chỉ được xác minh khi chạy Scan thực tế.":"Chưa thiết lập token Meta Page; chỉ có thể đối chiếu với nguồn mới được bạn nhập.");const history=data.history||[];const recent=$("recent-table");recent.replaceChildren();history.forEach(x=>recent.append(historyRow(x,true)));if(history.length===0){const row=el("tr"),cell=td(row,"Chưa có lượt Scan nào. Hãy nhập URL để bắt đầu.");cell.colSpan=4;cell.className="empty";recent.append(row)}text("live-status", "● Đã kết nối")}
 async function loadStatus(){try{const result=await api("/api/status");renderStatus(result)}catch(e){text("live-status","● LỖI KẾT NỐI");notify(e.message)}}
 async function loadHistory(){try{const data=await api("/api/scans");const table=$("history-table");table.replaceChildren();data.items.forEach(x=>table.append(historyRow(x)));if(!data.items.length){const tr=el("tr"),c=td(tr,"Chưa có kết quả được lưu.");c.colSpan=6;c.className="empty";table.append(tr)}text("history-foot",fmt(data.items.length)+" kết quả gần nhất · Lịch sử tổng hợp lưu 90 ngày")}catch(e){notify(e.message)}}
 function rows(parent,entries){const dl=el("dl");for(const [key,val] of entries){const row=el("div",null,"detail-row");row.append(el("dt",key),el("dd",val==null?"—":val));dl.append(row)}parent.append(dl)}
@@ -44,7 +44,7 @@ async function loadManagedPages(){
   text("page-access-note","Đang xác minh với Meta...");
   try{
     const data=await api("/api/meta/pages");
-    picker.replaceChildren(new Option("Chọn Facebook Page",""));
+    picker.replaceChildren(new Option("Chọn Trang Facebook",""));
     for(const page of data.pages||[]){
       if(/^\d+$/.test(page.id))picker.add(new Option(page.name+" · "+page.id,page.id));
     }
@@ -58,7 +58,7 @@ async function loadManagedPages(){
     text("page-diagnostics",isReady?"Meta đã trả về "+(picker.options.length-1)+" Page hợp lệ. Token chỉ lưu trong tiến trình server.":note);
     if(!isReady)$("page-posts").replaceChildren();
   }catch(e){
-    picker.replaceChildren(new Option("Không kết nối được Meta",""));
+    picker.replaceChildren(new Option("Lỗi kết nối Meta",""));
     $("load-page-posts").disabled=true;
     text("page-access-note",e.message);
     text("page-diagnostics",e.message);
@@ -101,3 +101,28 @@ $("managed-page").addEventListener("change",()=>{
 $("check-meta-pages").addEventListener("click",loadManagedPages);
 $("load-page-posts").addEventListener("click",showManagedPosts);
 loadManagedPages();
+
+/* Accessible user-selected appearance; default is a high-contrast light theme. */
+(function setupAppearance(){
+  const key="voidscan:appearance";
+  let saved="light";
+  try{saved=localStorage.getItem(key)==="dark"?"dark":"light"}catch(_){}
+  const root=document.documentElement;
+  const button=document.getElementById("theme-toggle");
+  function apply(mode){
+    root.dataset.theme=mode;
+    if(button){
+      const isDark=mode==="dark";
+      button.textContent=isDark?"☀":"☾";
+      button.setAttribute("aria-label",isDark?"Chuyển sang nền sáng":"Chuyển sang nền tối");
+      button.setAttribute("aria-pressed",String(isDark));
+      button.title=isDark?"Chuyển sang nền sáng":"Chuyển sang nền tối";
+    }
+  }
+  apply(saved);
+  button?.addEventListener("click",()=>{
+    const next=root.dataset.theme==="dark"?"light":"dark";
+    apply(next);
+    try{localStorage.setItem(key,next)}catch(_){}
+  });
+})();
