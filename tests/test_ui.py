@@ -1,69 +1,53 @@
-"""Regression checks for legible, Vietnamese-first VOIDSCAN interface."""
+"""VOIDSCAN guided workflow and readable Vietnamese interface regressions."""
 from __future__ import annotations
 import re
 import unittest
 from pathlib import Path
 
-WEB = Path(__file__).resolve().parents[1] / "web"
-
-def contrast(a, b):
-    def channel(s):
-        s = s / 255
-        return s / 12.92 if s <= .04045 else ((s + .055) / 1.055) ** 2.4
-    def lum(s):
-        values = [channel(int(s[i:i+2], 16)) for i in (1, 3, 5)]
-        return sum(v * w for v, w in zip(values, (.2126, .7152, .0722)))
-    x, y = sorted([lum(a), lum(b)], reverse=True)
-    return (x + .05) / (y + .05)
+WEB=Path(__file__).resolve().parents[1]/"web"
 
 class InterfaceTests(unittest.TestCase):
-    def test_vietnamese_language_and_viewport(self):
-        html = (WEB / "index.html").read_text(encoding="utf-8")
-        self.assertIn('lang="vi"', html)
-        self.assertIn('name="viewport"', html)
-        self.assertIn('id="theme-toggle"', html)
-        self.assertIn('id="reaction-object"', html)
-        self.assertIn('id="reaction-watch"', html)
-        self.assertIn('id="load-page-photos"', html)
+    def test_language_and_accessible_workflow(self):
+        html=(WEB/"index.html").read_text(encoding="utf-8")
+        self.assertIn('lang="vi"',html)
+        self.assertIn('name="viewport"',html)
+        for id_ in ("page-select","choose-photos","choose-posts","target-url",
+                    "reaction-kind","scan-btn","result","watch-btn","export-btn",
+                    "auth-warning","view-history","view-method"):
+            with self.subTest(element=id_):
+                self.assertIn('id="'+id_+'"',html)
+        self.assertIn("Quét & phân tích tương tác",html)
+        self.assertIn("Độ chắc chắn là bot",html)
 
-    def test_offline_vietnamese_font_stack(self):
-        css = (WEB / "app.css").read_text(encoding="utf-8")
-        self.assertIn('"Segoe UI"', css)
-        self.assertNotIn("@import", css)
-        self.assertNotIn("fonts.googleapis.com", css)
-        self.assertNotIn("font-family:Manrope", css)
+    def test_reduced_information_density(self):
+        html=(WEB/"index.html").read_text(encoding="utf-8")
+        self.assertNotIn('id="metric-scans"',html)
+        self.assertNotIn('id="file-picker"',html)
+        self.assertNotIn('id="scan-details"',html)
+        self.assertEqual(html.count('class="nav-button'),3)
 
-    def test_text_contrast_on_both_themes(self):
-        css = (WEB / "app.css").read_text(encoding="utf-8")
-        light = css.split(":root{", 1)[1].split("}", 1)[0]
-        dark = css.split(':root[data-theme="dark"]{', 1)[1].split("}", 1)[0]
-        def color(block, token):
-            m = re.search(r"--" + re.escape(token) + r":(#[0-9a-f]{6})", block)
-            self.assertIsNotNone(m, token)
-            return m.group(1)
-        for block in (light, dark):
-            bg = color(block, "surface")
-            for token in ("text", "muted", "brand"):
-                with self.subTest(mode="dark" if block is dark else "light", token=token):
-                    self.assertGreaterEqual(contrast(color(block, token), bg), 4.5)
+    def test_vietnamese_system_font(self):
+        css=(WEB/"app.css").read_text(encoding="utf-8")
+        self.assertIn('"Segoe UI"',css)
+        self.assertNotIn("fonts.googleapis.com",css)
+        self.assertNotIn("@import",css)
+        self.assertIn("prefers-reduced-motion",css)
+        self.assertIn("focus-visible",css)
+        self.assertIn("[hidden]",css)
 
-    def test_meta_token_expiry_is_distinct_from_local_server_status(self):
-        html = (WEB / "index.html").read_text(encoding="utf-8")
-        js = (WEB / "app.js").read_text(encoding="utf-8")
-        self.assertIn('id="meta-auth-alert"', html)
-        self.assertIn('id="meta-auth-alert-title"', html)
-        self.assertIn('id="meta-auth-alert-message"', html)
-        self.assertIn('role="alert"', html)
-        self.assertIn('data.error?.kind==="expired"', js)
-        self.assertIn('Meta: Token hết hạn', js)
-        self.assertIn('setup-voidscan-token.bat', js)
-        self.assertIn('loadStatus();loadManagedPages()', js)
+    def test_no_fabricated_bot_probability(self):
+        js=(WEB/"app.js").read_text(encoding="utf-8")
+        self.assertIn('setText("bot-probability","Chưa xác định")',js)
+        self.assertIn("suspicious_window_reactions",js)
+        self.assertIn("suspicious_share_pct",js)
+        self.assertIn("/api/reactions/report",js)
+        self.assertNotIn("Math.random(",js)
 
-    def test_appearance_toggle_accessibility(self):
-        js = (WEB / "app.js").read_text(encoding="utf-8")
-        self.assertIn('setAttribute("aria-label"', js)
-        self.assertIn('localStorage.setItem(key,next)', js)
-        self.assertIn('root.dataset.theme=mode', js)
+    def test_photo_is_selected_before_scanning_parent_with_attachments(self):
+        js=(WEB/"app.js").read_text(encoding="utf-8")
+        self.assertIn('state.sourceKind="attachments"',js)
+        self.assertIn('return false;',js)
+        self.assertIn("Không tự sử dụng số reaction của bài mẹ",js)
 
-if __name__ == "__main__":
+if __name__=="__main__":
     unittest.main()

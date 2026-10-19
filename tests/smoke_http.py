@@ -62,6 +62,12 @@ def main():
                 assert exc.code == 403
             unavailable_photo=get_json(base+"/api/reactions/photos?page_id=123456789")
             assert unavailable_photo["status"]=="unavailable"
+            report=get_json(base+"/api/reactions/report?page_id=123456789&object_id=123456789&type=LOVE")
+            assert report["assessment"]["current_reactions"] is None
+            assert report["assessment"]["bot_probability_pct"] is None
+            assert report["assessment"]["suspicious_share_pct"] is None
+            assert report["assessment"]["automatic_deduction"] == 0
+            assert report["observations"] == []
             empty_reactions=get_json(base+"/api/reactions/history?page_id=123456789&object_id=123456789&type=LOVE")
             assert empty_reactions["snapshots"]==[]
             assert empty_reactions["authoritative_bot_count"] is None

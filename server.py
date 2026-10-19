@@ -20,6 +20,7 @@ from meta_pages import MetaAccessError, managed_pages, public_pages, page_posts,
 import storage
 import reaction_collector
 import reaction_history
+from reaction_assessment import assess
 from share_resolver import resolve_shortlink
 from scan import reference, validate_url
 from secret_store import TokenStoreError, synchronize_meta_token, credential_source
@@ -95,7 +96,7 @@ def overview():
         return result
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "VOIDSCAN/2.3"
+    server_version = "VOIDSCAN/3.0"
     def log_message(self, fmt, *args):
         logging.info("%s - %s", self.address_string(), fmt % args)
 
@@ -212,6 +213,23 @@ class Handler(BaseHTTPRequestHandler):
                                           "message":"Link được phân giải nhưng đối tượng không khớp ảnh/bài được Page trả về."})
                 except MetaAccessError as exc:
                     return self.json({"status":"unavailable","error":exc.public()})
+            if u.path == "/api/reactions/report":
+                pid = args.get("page_id", [""])[0]
+                oid = args.get("object_id", [""])[0]
+                kind = args.get("type", ["LOVE"])[0].upper()
+                if not pid.isdigit() or not (4 <= len(pid) <= 30) or not (
+                    oid.isdigit() or oid.count("_") == 1 and all(x.isdigit() for x in oid.split("_"))
+                ) or len(oid) > 64:
+                    raise ValueError("ID Page/ảnh không hợp lệ.")
+                records = reaction_history.history(pid, oid, 500)
+                return self.json({"assessment": assess(records, kind),
+                                  "observations": [
+                                     {"observed_at": r["observed_at"],
+                                      "value": r["counts"].get(kind)}
+                                     for r in records
+                                  ],
+                                  "source": "meta_graph_api_aggregate_snapshots",
+                                  "unverified_individuals": True})
             if u.path == "/api/reactions/history":
                 pid = args.get("page_id", [""])[0]
                 oid = args.get("object_id", [""])[0]

@@ -176,9 +176,11 @@ def verify_photo(page, photo_id):
     return {"id":photo_id,"url":u,"created_time":"","excerpt":""},True
 
 def reaction_fields():
+    # SAD/SORRY is queried separately: on some Meta versions this enum
+    # invalidates the entire batch, discarding five otherwise valid counts.
     return ",".join(
-        "reactions.type(" + ("SORRY" if t == "SAD" else t) + ").limit(0).summary(total_count).as(r_" + t.lower() + ")"
-        for t in REACTIONS
+        "reactions.type(" + t + ").limit(0).summary(total_count).as(r_" + t.lower() + ")"
+        for t in REACTIONS if t != "SAD"
     )
 
 def extract_counts(payload, requested=REACTIONS):
@@ -193,31 +195,44 @@ def extract_counts(payload, requested=REACTIONS):
 def read_reactions(object_id, page):
     if not re.fullmatch(r"(?:[0-9]{4,30}|[0-9]{4,30}_[0-9]{4,30})", object_id):
         raise ValueError("Graph object ID không hợp lệ")
+    counts = dict.fromkeys(REACTIONS)
+    last_error = None
+    standard = tuple(kind for kind in REACTIONS if kind != "SAD")
     try:
         payload = graph_get(object_id, {"fields": reaction_fields()}, page["token"])
-        values = extract_counts(payload)
-        missing = [kind for kind, count in values.items() if count is None]
-        return {"status": "ok" if not missing else "partial",
-                "counts": values, "missing": missing, "api_error": None}
+        counts.update(extract_counts(payload, standard))
     except MetaAccessError as exc:
-        if exc.kind in ("rate_limit","expired","network"):
-            return {"status":"unavailable","counts":dict.fromkeys(REACTIONS),
-                    "missing":list(REACTIONS),"api_error":exc.public()}
-        # A rejected alias can invalidate the batch; retry six validated types
-        # independently to salvage counts, without fabricating zeros.
-        counts = dict.fromkeys(REACTIONS)
-        for kind in REACTIONS:
-            api_kind = "SORRY" if kind == "SAD" else kind
-            fields = ("reactions.type(" + api_kind + ").limit(0)"
-                      ".summary(total_count).as(r_" + kind.lower() + ")")
+        last_error = exc.public()
+        if exc.kind in ("rate_limit", "expired", "network"):
+            return {"status":"unavailable", "counts":counts,
+                    "missing":list(REACTIONS),"api_error":last_error}
+        # Degraded mode: recover independently only if the five-type batch fails.
+        for kind in standard:
+            field = "reactions.type(" + kind + ").limit(0).summary(total_count).as(r_" + kind.lower() + ")"
             try:
-                response = graph_get(object_id, {"fields": fields}, page["token"])
-                counts[kind] = extract_counts(response, (kind,))[kind]
-            except MetaAccessError:
-                continue
-        missing = [name for name, number in counts.items() if number is None]
-        return {"status": ("partial" if len(missing) < len(REACTIONS) else "unavailable"),
-                "counts": counts, "missing": missing, "api_error": exc.public()}
+                response = graph_get(object_id, {"fields":field}, page["token"])
+                counts.update(extract_counts(response, (kind,)))
+            except MetaAccessError as err:
+                if err.kind in ("rate_limit", "expired", "network"):
+                    break
+
+    # The Meta API varies between SAD and SORRY enum names; neither must
+    # invalidate otherwise valid data for LIKE/LOVE/WOW/HAHA/ANGRY.
+    if any(type(counts[k]) is int for k in standard):
+        for meta_kind in ("SORRY", "SAD"):
+            field = "reactions.type(" + meta_kind + ").limit(0).summary(total_count).as(r_sad)"
+            try:
+                reply = graph_get(object_id, {"fields":field}, page["token"])
+                counts["SAD"] = extract_counts(reply, ("SAD",))["SAD"]
+                if counts["SAD"] is not None:
+                    break
+            except MetaAccessError as exc:
+                if exc.kind in ("rate_limit", "expired", "network"):
+                    break
+    missing = [k for k in REACTIONS if counts[k] is None]
+    return {"status":"ok" if not missing else "partial" if len(missing)<len(REACTIONS)
+            else "unavailable", "counts":counts, "missing":missing,
+            "api_error":last_error}
 
 def collect_once(page_id, post_id, object_id=None, url=None):
     page = verify_page(page_id)
@@ -225,7 +240,9 @@ def collect_once(page_id, post_id, object_id=None, url=None):
     # A standalone Page photo is verified via the Page's official uploaded photos.
     if oid and oid == str(post_id) and re.fullmatch(r"[0-9]{4,30}",oid):
         target,partial=verify_photo(page,oid)
-        counts=read_reactions(oid,page)
+        # Meta exposes post-style reaction summaries using the composite
+        # PageID_PhotoID identifier for verified Page photos.
+        counts=read_reactions(page["id"]+"_"+oid,page)
         return {
             "page":{"id":page["id"],"name":page["name"]},
             "post":{"id":oid,"url":target["url"]},
@@ -244,7 +261,10 @@ def collect_once(page_id, post_id, object_id=None, url=None):
         object_type = "attachment"
     else:
         object_type = "post"
-    result = read_reactions(oid, page)
+    graph_object_id = (page["id"]+"_"+oid) if object_type=="attachment" and (
+        oid.isdigit() and any(x["id"]==oid and "photo" in str(x.get("media_type","")).lower()
+        for x in attachments["items"])) else oid
+    result = read_reactions(graph_object_id, page)
     return {
         "page": {"id": page["id"], "name": page["name"]},
         "post": {"id": post["id"], "url": post.get("url", "")},

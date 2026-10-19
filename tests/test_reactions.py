@@ -40,9 +40,11 @@ class ReactionTests(unittest.TestCase):
         self.assertIsNone(parsed["HAHA"])
         self.assertIsNone(parsed["SAD"])
 
-    def test_sad_api_uses_sorry_enum(self):
-        self.assertIn("type(SORRY)",rc.reaction_fields())
-        self.assertNotIn("type(SAD)",rc.reaction_fields())
+    def test_sad_is_isolated_from_supported_batch(self):
+        fields=rc.reaction_fields()
+        self.assertIn("type(LOVE)",fields)
+        self.assertNotIn("type(SORRY)",fields)
+        self.assertNotIn("type(SAD)",fields)
 
     def test_attachment_whitelist_and_no_parent_fallback(self):
         with patch("reaction_collector.managed_pages",return_value={PAGE:self.page}),patch(
@@ -97,6 +99,16 @@ class ReactionTests(unittest.TestCase):
             result=rc.collect_once(PAGE,PHOTO,PHOTO)
             self.assertEqual(result["object"]["type"],"photo")
             self.assertEqual(result["object"]["id"],PHOTO)
+
+    def test_photo_reaction_uses_verified_page_composite_id(self):
+        with patch("reaction_collector.managed_pages",return_value={PAGE:self.page}),patch(
+          "reaction_collector.verify_photo",return_value=({"id":PHOTO,"url":URL},False)),patch(
+          "reaction_collector.read_reactions",return_value={
+            "status":"partial","counts":dict.fromkeys(rc.REACTIONS,0),
+            "missing":[],"api_error":None}) as reader:
+            result=rc.collect_once(PAGE,PHOTO,PHOTO)
+            self.assertEqual(result["object"]["id"],PHOTO)
+            reader.assert_called_once_with(PAGE+"_"+PHOTO,self.page)
 
     def test_old_photo_does_not_bypass_creator_check(self):
         with patch("reaction_collector.page_photos",

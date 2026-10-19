@@ -1,4 +1,4 @@
-# VOIDSCAN 2.3 — Reaction Intelligence Research Preview
+# VOIDSCAN 3.0 — Guided Reaction Integrity Research Preview
 
 **Facebook engagement intelligence, not a fake-account oracle.**
 
@@ -15,10 +15,10 @@ VOIDSCAN is a local-first open-source research preview. It accepts a Facebook po
 - Optional **new** CSV import from authorized sources, for local audit purposes only.
 - SQLite history (90-day retention); saves aggregated counts and signal descriptions, not user names, profile IDs or raw comment bodies.
 - Local-only server on 127.0.0.1. This is not a production internet-facing service.
-- Vietnamese-first responsive interface using local Windows Segoe UI fonts (no external font dependency), high-contrast light theme by default and an optional dark theme. The theme toggle is available in the top-right corner and remembered locally.
+- Rebuilt Vietnamese-first interface: three-stage Page → photo/link → scan flow, streamlined 3-tab navigation, dedicated integrity report and monitoring controls. Segoe UI local fonts, responsive high-contrast light design.
 - GitHub Actions unit tests on each push.
 - **One-time encrypted Meta token setup:** paste using a masked Windows dialog (Ctrl+V, right-click Paste, or a dedicated clipboard button); storage uses Windows DPAPI outside Git. The encrypted token takes precedence over stale environment tokens and is hot-reloaded by the running server when updated. Use `VOIDSCAN_USE_ENV_TOKEN=1` for explicit manual-env override. Double-click `start-voidscan.bat` for one-click browser/server launch. See [Token setup](docs/TOKEN_SETUP.md).
-- **Reaction Intelligence (experimental):** authorized Page post and photo reaction counts, timestamped SQLite observations, 10-minute local monitor for up to 5 objects, audit CSV export and review-only anomaly screening. It does not infer the number of bot accounts or automatically deduct votes. See [Reaction Integrity Audit](docs/REACTION_AUDIT.md).
+- **Reaction Intelligence (experimental):** verified Page photo ID is queried using PageID_PhotoID Graph object form (validated against two connected Pages); aggregates by type where Meta grants access, timestamped snapshots, 10-minute monitoring, provisional suspicious-window counts and shares, and local CSV export. A suspicious-window share is **not** a calibrated probability of bot activity. See [Reaction Integrity Audit](docs/REACTION_AUDIT.md) and [Integrity Report](docs/INTEGRITY_REPORT.md).
 
 ## Start (Windows, Python 3.10+)
 
