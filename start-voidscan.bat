@@ -1,10 +1,11 @@
 @echo off
-setlocal
+chcp 65001 >nul
 cd /d "%~dp0"
-where py >nul 2>&1
-if %errorlevel%==0 (
-  py -3 server.py
-) else (
-  python server.py
+where python >nul 2>&1
+if errorlevel 1 (
+    echo Khong tim thay Python. Hay cai Python 3.10+.
+    pause
+    exit /b 1
 )
-pause
+python launch_voidscan.py
+if errorlevel 1 pause

@@ -17,7 +17,7 @@ jobs:
         with:
           node-version: '22'
       - name: Python syntax
-        run: python -m py_compile engine.py scan.py server.py storage.py meta_pages.py reaction_collector.py reaction_history.py share_resolver.py
+        run: python -m py_compile engine.py scan.py server.py storage.py meta_pages.py reaction_collector.py reaction_history.py share_resolver.py secret_store.py manage_token.py launch_voidscan.py
       - name: Unit tests
         run: python -m unittest discover -s tests -v
       - name: Browser script syntax

@@ -405,6 +405,12 @@ def reaction_monitor_loop():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    from secret_store import TokenStoreError, load_saved_meta_token_into_process
+    try:
+        if load_saved_meta_token_into_process():
+            logging.info("Meta token mã hóa đã được nạp cho phiên chạy này.")
+    except TokenStoreError as exc:
+        logging.warning("Không nạp được token mã hóa: %s", exc)
     load()
     storage.initialize()
     storage.purge_expired(90)
