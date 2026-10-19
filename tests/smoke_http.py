@@ -30,6 +30,8 @@ def main():
             port = sock.getsockname()[1]
         env = dict(os.environ)
         env["VOIDSCAN_DATA_DIR"] = temp
+        # Keep smoke tests strictly isolated from real encrypted Meta tokens.
+        env["LOCALAPPDATA"] = str(Path(temp) / "empty-user-profile")
         env["VOIDSCAN_PORT"] = str(port)
         env.pop("META_PAGE_ACCESS_TOKEN", None)
         env.pop("META_USER_ACCESS_TOKEN", None)

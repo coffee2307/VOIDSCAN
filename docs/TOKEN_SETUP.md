@@ -33,7 +33,7 @@ Nếu chưa có token lưu, start-voidscan.bat sẽ hỏi một lần để lưu
 
 ## Token không tồn tại vĩnh viễn
 
-Meta có thể thu hồi hoặc token có thể hết hạn. Lưu mã hóa chỉ giúp không phải nhập lại mỗi lần, KHÔNG tự gia hạn token. Khi Meta báo token hết hạn, tạo token mới rồi chạy:
+Meta có thể thu hồi hoặc token có thể hết hạn. Lưu mã hóa chỉ giúp không phải nhập lại mỗi lần, KHÔNG tự gia hạn token. Nếu danh sách Page trống và VOIDSCAN báo lỗi Meta `190`, subcode `463`, nghĩa là **token đã hết hạn**, không phải server cục bộ bị ngắt kết nối. Khi Meta báo token hết hạn, tạo User Access Token mới cho ứng dụng VOIDSCAN với các quyền Page trước đó rồi chạy:
 
     python manage_token.py set
 

@@ -4,6 +4,35 @@ const fmt=n=>new Intl.NumberFormat("vi-VN").format(Number(n)||0);
 const labels={live:"Đọc được từ Meta",matched:"Đối chiếu CSV mới",unavailable:"Chưa đủ dữ liệu"};
 const sourceLabels={meta_graph_api:"Meta Graph API",local_csv:"Dữ liệu chủ động nhập",none:"Không có nguồn"};
 let toastTimer=0;
+let metaConnectionStatus="checking";
+function metaConnectionBanner(status,error){
+  metaConnectionStatus=status;
+  const alert=$("meta-auth-alert");
+  const indicator=$("live-status");
+  const expired=status==="expired";
+  const missing=status==="unconfigured";
+  const noPages=status==="no_pages";
+  const trouble=status==="error";
+  const problem=expired||missing||noPages||trouble;
+  indicator.classList.toggle("connection-error",problem);
+  indicator.textContent=expired?"● Meta: Token hết hạn":
+    status==="ready"?"● Meta: Đã xác minh Page":
+    missing?"● Meta: Chưa cấu hình":
+    noPages?"● Meta: Không có Page":
+    trouble?"● Meta: Lỗi kết nối":"● Đang kiểm tra Meta";
+  alert.hidden=!problem;
+  if(!problem)return;
+  const heading=expired?"Access Token Meta đã hết hạn":
+    missing?"Chưa cấu hình Access Token cho Meta":
+    noPages?"Meta không trả về Page quản trị":"Không thể kiểm tra kết nối Meta";
+  text("meta-auth-alert-title",heading);
+  text("meta-auth-alert-message",expired?
+    "Meta trả về lỗi 190/463. Hãy mở F:\\VOIDSCAN\\setup-voidscan-token.bat, dán User Access Token mới, nhấn Lưu token; sau đó tắt server hiện tại, mở lại VOIDSCAN trên Desktop và làm mới trang. Token cũ không thể sử dụng tiếp.":
+    missing?"Mở F:\\VOIDSCAN\\setup-voidscan-token.bat để lưu User Access Token, sau đó khởi động lại VOIDSCAN.":
+    noPages?"Token chưa truy cập được Page nào. Hãy kiểm tra quyền pages_show_list, business_management khi cần, và Page đã được cấp quyền cho tài khoản Facebook.":
+    (error?.message||"Kiểm tra lại kết nối mạng và quyền truy cập Meta API."));
+}
+
 function el(tag,value,cls){const x=document.createElement(tag);if(value!=null)x.textContent=String(value);if(cls)x.className=cls;return x}
 function notify(message){const b=$("toast");b.textContent=message;b.classList.add("visible");clearTimeout(toastTimer);toastTimer=setTimeout(()=>b.classList.remove("visible"),4500)}
 function text(id,value){$(id).textContent=String(value)}
@@ -12,8 +41,8 @@ function goto(name){document.querySelectorAll(".nav-item").forEach(x=>x.classLis
 function td(row,value){const c=el("td");if(value instanceof Node)c.append(value);else c.textContent=String(value);row.append(c);return c}
 function badge(status){const b=el("span",labels[status]||status,"flag "+(status==="unavailable"?"unverified":status==="live"?"keep":""));return b}
 function historyRow(x,summary=false){const tr=el("tr");td(tr,x.created_at.slice(0,19).replace("T"," "));if(!summary){const url=el("span",x.post_url);url.className="history-url";td(tr,url);}td(tr,sourceLabels[x.source]||x.source);td(tr,badge(x.status));td(tr,fmt(x.evidence_count));if(!summary)td(tr,fmt(x.signal_count));tr.tabIndex=0;tr.addEventListener("click",()=>detail(x.id));tr.addEventListener("keydown",e=>{if(e.key==="Enter")detail(x.id)});return tr}
-function renderStatus(data){const m=data.stats||{};for(const k of ["scans","live","flagged","unavailable"])text("metric-"+k,fmt(m[k]));const ready=data.connectors?.meta===true;text("meta-state",ready?"Có token":"Chưa cấu hình");text("meta-state-detail",ready?"Có token — chưa kiểm tra quyền":"Chưa cấu hình token");text("source-explainer",ready?"Đã nhận cấu hình token, nhưng quyền truy cập chỉ được xác minh khi chạy Scan thực tế.":"Chưa thiết lập token Meta Page; chỉ có thể đối chiếu với nguồn mới được bạn nhập.");const history=data.history||[];const recent=$("recent-table");recent.replaceChildren();history.forEach(x=>recent.append(historyRow(x,true)));if(history.length===0){const row=el("tr"),cell=td(row,"Chưa có lượt Scan nào. Hãy nhập URL để bắt đầu.");cell.colSpan=4;cell.className="empty";recent.append(row)}text("live-status", "● Đã kết nối")}
-async function loadStatus(){try{const result=await api("/api/status");renderStatus(result)}catch(e){text("live-status","● LỖI KẾT NỐI");notify(e.message)}}
+function renderStatus(data){const m=data.stats||{};for(const k of ["scans","live","flagged","unavailable"])text("metric-"+k,fmt(m[k]));const ready=data.connectors?.meta===true;text("meta-state",ready?"Có token":"Chưa cấu hình");text("meta-state-detail",ready?"Có token — chưa kiểm tra quyền":"Chưa cấu hình token");text("source-explainer",ready?"Đã nhận cấu hình token, nhưng quyền truy cập chỉ được xác minh khi chạy Scan thực tế.":"Chưa thiết lập token Meta Page; chỉ có thể đối chiếu với nguồn mới được bạn nhập.");const history=data.history||[];const recent=$("recent-table");recent.replaceChildren();history.forEach(x=>recent.append(historyRow(x,true)));if(history.length===0){const row=el("tr"),cell=td(row,"Chưa có lượt Scan nào. Hãy nhập URL để bắt đầu.");cell.colSpan=4;cell.className="empty";recent.append(row)}if(metaConnectionStatus==="checking")metaConnectionBanner("checking")}
+async function loadStatus(){try{const result=await api("/api/status");renderStatus(result)}catch(e){text("live-status","● Không kết nối server");notify(e.message)}}
 async function loadHistory(){try{const data=await api("/api/scans");const table=$("history-table");table.replaceChildren();data.items.forEach(x=>table.append(historyRow(x)));if(!data.items.length){const tr=el("tr"),c=td(tr,"Chưa có kết quả được lưu.");c.colSpan=6;c.className="empty";table.append(tr)}text("history-foot",fmt(data.items.length)+" kết quả gần nhất · Lịch sử tổng hợp lưu 90 ngày")}catch(e){notify(e.message)}}
 function rows(parent,entries){const dl=el("dl");for(const [key,val] of entries){const row=el("div",null,"detail-row");row.append(el("dt",key),el("dd",val==null?"—":val));dl.append(row)}parent.append(dl)}
 async function detail(scanId){try{const r=await api("/api/scans/"+scanId);const box=$("history-detail");box.replaceChildren();rows(box,[["Thời gian UTC",r.created_at],["Đường dẫn",r.post_url],["Trạng thái",labels[r.status]||r.status],["Nguồn",sourceLabels[r.source]||r.source],["Mẫu quan sát",r.evidence_count],["Số loại tín hiệu",r.signal_count],["Lưu ý",r.result.message]]);if(r.result.signals?.length){box.append(el("h3","Tín hiệu được lưu"));renderSignals(box,r.result.signals)}$("history-dialog").showModal()}catch(e){notify(e.message)}}
@@ -24,7 +53,7 @@ async function importFiles(files){const selected=Array.from(files);if(!selected.
 document.querySelectorAll("[data-view]").forEach(x=>x.addEventListener("click",()=>{goto(x.dataset.view);if(x.dataset.view==="history")loadHistory()}));
 document.querySelectorAll("[data-goto]").forEach(x=>x.addEventListener("click",()=>{goto(x.dataset.goto);if(x.dataset.goto==="history")loadHistory()}));
 $("scan-button").addEventListener("click",scan);$("scan-url").addEventListener("keydown",e=>{if(e.key==="Enter")scan()});
-$("refresh").addEventListener("click",()=>{loadStatus();if($("view-history").classList.contains("active"))loadHistory()});
+$("refresh").addEventListener("click",()=>{loadStatus();loadManagedPages();if($("view-history").classList.contains("active"))loadHistory()});
 $("close-dialog").addEventListener("click",()=>$("history-dialog").close());
 $("export-history").addEventListener("click",()=>{location.href="/api/export-history.csv"});
 $("select-files").addEventListener("click",()=>$("file-picker").click());
@@ -52,6 +81,10 @@ async function loadManagedPages(){
     if(choices.includes(oldSelection))picker.value=oldSelection;
     else if(choices.length===2)picker.value=choices[1];
     const isReady=data.status==="ready"&&picker.options.length>1;
+    const metaStatus=data.status==="error"&&data.error?.kind==="expired"?"expired":
+        isReady?"ready":data.status;
+    metaConnectionBanner(metaStatus,data.error);
+    text("meta-state-detail",metaStatus==="expired"?"Token đã hết hạn · cần cập nhật":isReady?"Đã xác minh Page qua Meta":data.error?.message||data.message||"Chưa xác minh");
     $("load-page-posts").disabled=!isReady;
     $("load-page-photos").disabled=!isReady;
     const note=data.error?.message||data.message||"Không có Page khả dụng.";
@@ -64,6 +97,7 @@ async function loadManagedPages(){
     $("load-page-photos").disabled=true;
     text("page-access-note",e.message);
     text("page-diagnostics",e.message);
+    metaConnectionBanner("error",{message:e.message});
   }finally{
     pageRefreshInProgress=false;
     button.disabled=false;

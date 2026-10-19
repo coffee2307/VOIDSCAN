@@ -260,6 +260,12 @@ dialog::backdrop{background:#161b2a88}
   *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
 }
 
+.meta-auth-alert[hidden]{display:none}
+.meta-auth-alert{margin:15px 0 8px;padding:17px 19px;border:1px solid var(--error);background:var(--error-bg);border-radius:11px;color:var(--error);font-size:14px;line-height:1.7}
+.meta-auth-alert strong{display:block;font-size:15px;color:var(--error);margin-bottom:5px}
+.meta-auth-alert p{margin:0;color:var(--text);font-size:13px;line-height:1.8;overflow-wrap:anywhere}
+.live-status.connection-error{color:var(--error)}
+.live-status.connection-error i{background:var(--error)}
 /* Reaction evidence: no synthetic bot count and no fake account conclusions. */
 .reaction-panel{padding:27px;margin:0 0 24px}
 .reaction-panel>.subhead{margin-bottom:20px}

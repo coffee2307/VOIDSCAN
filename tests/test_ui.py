@@ -47,6 +47,18 @@ class InterfaceTests(unittest.TestCase):
                 with self.subTest(mode="dark" if block is dark else "light", token=token):
                     self.assertGreaterEqual(contrast(color(block, token), bg), 4.5)
 
+    def test_meta_token_expiry_is_distinct_from_local_server_status(self):
+        html = (WEB / "index.html").read_text(encoding="utf-8")
+        js = (WEB / "app.js").read_text(encoding="utf-8")
+        self.assertIn('id="meta-auth-alert"', html)
+        self.assertIn('id="meta-auth-alert-title"', html)
+        self.assertIn('id="meta-auth-alert-message"', html)
+        self.assertIn('role="alert"', html)
+        self.assertIn('data.error?.kind==="expired"', js)
+        self.assertIn('Meta: Token hết hạn', js)
+        self.assertIn('setup-voidscan-token.bat', js)
+        self.assertIn('loadStatus();loadManagedPages()', js)
+
     def test_appearance_toggle_accessibility(self):
         js = (WEB / "app.js").read_text(encoding="utf-8")
         self.assertIn('setAttribute("aria-label"', js)
