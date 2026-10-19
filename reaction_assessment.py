@@ -6,6 +6,7 @@ from __future__ import annotations
 from datetime import datetime
 from reaction_collector import REACTIONS
 from reaction_history import anomaly_report
+from research_quality import audit_series
 
 
 def assess(points: list[dict], reaction_kind: str = "LOVE") -> dict:
@@ -16,14 +17,17 @@ def assess(points: list[dict], reaction_kind: str = "LOVE") -> dict:
         count = (item.get("counts") or {}).get(reaction_kind)
         if type(count) is int and count >= 0:
             usable.append(item)
-    analysis = anomaly_report(usable, reaction_kind)
+    # Audit the ORIGINAL sequence: filtering null observations would silently
+    # join measurements separated by an outage or permission failure.
+    quality = audit_series(points, reaction_kind)
+    analysis = anomaly_report(points, reaction_kind)
     last = usable[-1]["counts"][reaction_kind] if usable else None
     first = usable[0]["counts"][reaction_kind] if usable else None
     number = analysis["flagged_net_increase"] if last is not None else None
     flagged_count = analysis["flagged_intervals"]
-    total_intervals = max(0, len(usable) - 1)
+    total_intervals = analysis["eligible_intervals"]
     # A high number of samples does not verify the truth of a bot accusation.
-    signal_ready = total_intervals >= 6
+    signal_ready = quality["ready_for_review"]
     if not usable:
         coverage = "không_có_dữ_liệu"
         headline = "Chưa thu thập được reaction"
@@ -61,6 +65,7 @@ def assess(points: list[dict], reaction_kind: str = "LOVE") -> dict:
         "observed_intervals": total_intervals,
         "observed_snapshots": len(usable),
         "observation_hours": observation_hours,
+        "data_quality": quality,
         "evidence_status": coverage,
         "headline": headline,
         "intervals": analysis["intervals"],

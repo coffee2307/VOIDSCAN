@@ -15,6 +15,7 @@ from contextlib import closing
 import sqlite3
 
 from reaction_collector import REACTIONS
+from research_quality import parse_utc, EXPECTED_MINUTES, MAX_GAP_MULTIPLIER
 from storage import DEFAULT_DB
 
 LOCK = threading.RLock()
@@ -99,16 +100,23 @@ def anomaly_report(points, reaction_kind="LOVE"):
         raise ValueError("Reaction kind unsupported")
     segments=[]
     historical_rates=[]
+    eligible_intervals=0
+    # Maximum allowed gap for a single rate observation at 10-minute sampling.
+    # Longer gaps must never be interpreted as precisely timed activity.
+    max_gap_minutes=EXPECTED_MINUTES * MAX_GAP_MULTIPLIER
     for before,after in zip(points,points[1:]):
         previous=before["counts"].get(reaction_kind)
         current=after["counts"].get(reaction_kind)
         if type(previous) is not int or type(current) is not int:
             continue
-        a=datetime.fromisoformat(before["observed_at"].replace("Z","+00:00"))
-        b=datetime.fromisoformat(after["observed_at"].replace("Z","+00:00"))
-        mins=(b-a).total_seconds()/60.0
-        if mins<.2:
+        a=parse_utc(before.get("observed_at"))
+        b=parse_utc(after.get("observed_at"))
+        if a is None or b is None:
             continue
+        mins=(b-a).total_seconds()/60.0
+        if mins < .2 or mins > max_gap_minutes:
+            continue
+        eligible_intervals += 1
         delta=current-previous
         rate=delta/mins if delta>=0 else 0.0
         median=statistics.median(historical_rates) if len(historical_rates)>=5 else None
@@ -135,6 +143,7 @@ def anomaly_report(points, reaction_kind="LOVE"):
         "flagged_net_increase":flagged_delta,
         "flagged_intervals":sum(x["flagged"] for x in segments),
         "sample_size":len(points),
+        "eligible_intervals":eligible_intervals,
         "status":"review" if flagged_delta else ("insufficient_history" if len(historical_rates)<6 else "no_anomaly_detected"),
         "not_fake_count":True,
         "deductible_reactions":0,

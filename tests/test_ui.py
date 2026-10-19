@@ -41,6 +41,8 @@ class InterfaceTests(unittest.TestCase):
         self.assertIn("suspicious_window_reactions",js)
         self.assertIn("suspicious_share_pct",js)
         self.assertIn("/api/reactions/report",js)
+        self.assertIn("quality.eligible_adjacent_intervals",js)
+        self.assertIn("quality.long_gaps",js)
         self.assertNotIn("Math.random(",js)
 
     def test_photo_is_selected_before_scanning_parent_with_attachments(self):

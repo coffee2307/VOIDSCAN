@@ -147,13 +147,18 @@ async function loadReport(target=state.target){
  setText("flagged-reactions",a.suspicious_window_reactions===null?"—":nf(a.suspicious_window_reactions));
  setText("flagged-percentage",a.suspicious_share_pct===null?"—":a.suspicious_share_pct.toLocaleString("vi-VN")+"%");
  setText("bot-probability","Chưa xác định");
- setText("sample-count",nf(a.observed_snapshots)+" mốc đo · "+a.observation_hours+" giờ");
+ const quality=a.data_quality||{};
+ setText("sample-count",nf(a.observed_snapshots)+" mốc đo · "+nf(quality.eligible_adjacent_intervals||0)+"/6 khoảng đủ điều kiện"+(quality.stale?" · Số liệu đã cũ":""));
  const review=a.evidence_status==="có_chỉ_báo",ok=a.evidence_status==="chưa_phát_hiện";
  $("evidence-badge").className="pill "+(review?"warn":ok?"good":"");
  setText("evidence-badge",review?"Cần rà soát":ok?"Chưa có cảnh báo":"Chưa đủ dữ liệu");
  const verdict=$("verdict");verdict.replaceChildren();verdict.className="verdict "+(review?"warn":"");
  verdict.append(el("strong","",review?"Có khoảng tăng nghi vấn, chưa xác nhận được bot":ok?"Chưa phát hiện đột biến theo mô hình hiện tại":"Chưa đủ lịch sử để đánh giá"));
  verdict.append(el("span","",review?nf(a.suspicious_window_reactions)+" lượt tăng trong "+nf(a.flagged_intervals)+" khoảng đáng rà soát. Không tự trừ số này khỏi điểm cuộc thi.":ok?"Không có cảnh báo không có nghĩa mọi tài khoản đều là người thật.":"VOIDSCAN cần tối thiểu 7 mốc reaction có giá trị. Cuộc thi cũ không thể tự tái dựng lịch sử đã mất."));
+ if(quality.missing_counts||quality.long_gaps||quality.repeated_timestamps||quality.invalid_timestamps){
+  verdict.append(el("p","", "Chất lượng dữ liệu: "+nf(quality.missing_counts||0)+" mốc thiếu số · "+nf(quality.long_gaps||0)+" khoảng đo gián đoạn · "+nf(quality.repeated_timestamps||0)+" timestamp trùng · "+nf(quality.invalid_timestamps||0)+" timestamp không hợp lệ. Không suy diễn số bot từ các khoảng này."));
+ }
+ if(quality.stale)verdict.append(el("p","","Lần quan sát mới nhất đã cũ. Cần quét lại để cập nhật tổng reaction."));
  plot(data.observations||[]);intervals(a.intervals||[]);
  await syncWatch();
  $("result").scrollIntoView({behavior:"smooth",block:"start"});
