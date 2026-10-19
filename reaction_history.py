@@ -101,23 +101,27 @@ def anomaly_report(points, reaction_kind="LOVE"):
     segments=[]
     historical_rates=[]
     eligible_intervals=0
-    # Maximum allowed gap for a single rate observation at 10-minute sampling.
-    # Longer gaps must never be interpreted as precisely timed activity.
+    # Reject a missing scheduled poll: for 10-minute cadence, any gap
+    # longer than 15 minutes is not an observed 10-minute growth burst.
     max_gap_minutes=EXPECTED_MINUTES * MAX_GAP_MULTIPLIER
     for before,after in zip(points,points[1:]):
         previous=before["counts"].get(reaction_kind)
         current=after["counts"].get(reaction_kind)
         if type(previous) is not int or type(current) is not int:
+            historical_rates.clear()
             continue
         a=parse_utc(before.get("observed_at"))
         b=parse_utc(after.get("observed_at"))
         if a is None or b is None:
+            historical_rates.clear()
             continue
         mins=(b-a).total_seconds()/60.0
         if mins < .2 or mins > max_gap_minutes:
+            historical_rates.clear()
             continue
-        eligible_intervals += 1
         delta=current-previous
+        if delta>=0:
+            eligible_intervals += 1
         rate=delta/mins if delta>=0 else 0.0
         median=statistics.median(historical_rates) if len(historical_rates)>=5 else None
         mad=statistics.median(abs(x-median) for x in historical_rates) if median is not None else None
@@ -136,6 +140,8 @@ def anomaly_report(points, reaction_kind="LOVE"):
         })
         if delta>=0:
             historical_rates.append(rate)
+        else:
+            historical_rates.clear()
     flagged_delta=sum(max(0,x["delta"]) for x in segments if x["flagged"])
     return {
         "reaction_type":reaction_kind,

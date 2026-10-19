@@ -67,6 +67,11 @@ def main():
             assert report["assessment"]["bot_probability_pct"] is None
             assert report["assessment"]["suspicious_share_pct"] is None
             assert report["assessment"]["automatic_deduction"] == 0
+            comparison=report["r1_research_comparison"]
+            assert comparison["status"]=="insufficient_history"
+            assert comparison["bot_probability_pct"] is None
+            assert comparison["automatic_deduction"] == 0
+            assert len(comparison["method_results"])==3
             assert report["observations"] == []
             empty_reactions=get_json(base+"/api/reactions/history?page_id=123456789&object_id=123456789&type=LOVE")
             assert empty_reactions["snapshots"]==[]

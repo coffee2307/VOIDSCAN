@@ -155,13 +155,31 @@ async function loadReport(target=state.target){
  const verdict=$("verdict");verdict.replaceChildren();verdict.className="verdict "+(review?"warn":"");
  verdict.append(el("strong","",review?"Có khoảng tăng nghi vấn, chưa xác nhận được bot":ok?"Chưa phát hiện đột biến theo mô hình hiện tại":"Chưa đủ lịch sử để đánh giá"));
  verdict.append(el("span","",review?nf(a.suspicious_window_reactions)+" lượt tăng trong "+nf(a.flagged_intervals)+" khoảng đáng rà soát. Không tự trừ số này khỏi điểm cuộc thi.":ok?"Không có cảnh báo không có nghĩa mọi tài khoản đều là người thật.":"VOIDSCAN cần tối thiểu 7 mốc reaction có giá trị. Cuộc thi cũ không thể tự tái dựng lịch sử đã mất."));
- if(quality.missing_counts||quality.long_gaps||quality.repeated_timestamps||quality.invalid_timestamps){
-  verdict.append(el("p","", "Chất lượng dữ liệu: "+nf(quality.missing_counts||0)+" mốc thiếu số · "+nf(quality.long_gaps||0)+" khoảng đo gián đoạn · "+nf(quality.repeated_timestamps||0)+" timestamp trùng · "+nf(quality.invalid_timestamps||0)+" timestamp không hợp lệ. Không suy diễn số bot từ các khoảng này."));
+ if(quality.missing_counts||quality.long_gaps||quality.repeated_timestamps||quality.invalid_timestamps||quality.negative_corrections){
+  verdict.append(el("p","", "Chất lượng dữ liệu: "+nf(quality.missing_counts||0)+" mốc thiếu số · "+nf(quality.long_gaps||0)+" khoảng đo gián đoạn · "+nf(quality.repeated_timestamps||0)+" timestamp trùng · "+nf(quality.invalid_timestamps||0)+" timestamp không hợp lệ · "+nf(quality.negative_corrections||0)+" lần số reaction giảm hoặc được sửa. Không suy diễn số bot từ các khoảng này."));
  }
  if(quality.stale)verdict.append(el("p","","Lần quan sát mới nhất đã cũ. Cần quét lại để cập nhật tổng reaction."));
  plot(data.observations||[]);intervals(a.intervals||[]);
+ renderR1Comparison(data.r1_research_comparison);
  await syncWatch();
  $("result").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function renderR1Comparison(data){
+ const root=$("r1-baselines");root.replaceChildren();
+ if(!data||data.status!=="experimental_unvalidated"){
+   root.append(el("p","empty","Chưa đủ các khoảng thời gian hợp lệ để đối chiếu thuật toán. Bật theo dõi định kỳ để có chuỗi dữ liệu."));
+   return;
+ }
+ const intro=el("p","field-help","Đã so sánh "+nf(data.evaluated_intervals)+" khoảng với 3 mô hình cùng dùng một nguồn dữ liệu Meta. Các con số chỉ là chỉ báo nghiên cứu; không dùng để trừ điểm.");
+ root.append(intro);
+ for(const [name,m] of Object.entries(data.method_results)){
+   const row=el("div","evidence-row");
+   const description=el("span","",m.name);
+   const result=el("strong","",nf(m.flagged_intervals)+" khoảng · "+nf(m.flagged_growth)+" lượt tăng nằm trong khoảng bị gắn cờ");
+   row.append(description,result);root.append(row);
+ }
+ root.append(el("p","field-help","Đồng thuận từ 2/3 phương pháp: "+nf(data.multi_method_agreement_intervals)+" khoảng. Đồng thuận KHÔNG đồng nghĩa xác suất gian lận. Các phương pháp cùng đọc một chuỗi reaction, nên không cung cấp bằng chứng độc lập."));
+ root.append(el("p","field-help","Phần tăng vượt baseline chỉ là ước tính thống kê, không phải số tài khoản ảo hay lượt cần trừ."));
 }
 function intervals(values){
  const root=$("flagged-intervals");root.replaceChildren();const flagged=values.filter(x=>x.flagged);

@@ -14,7 +14,7 @@
 
 Định dạng quan sát: Page ID, Object ID, source, UTC timestamp có timezone, reaction type và nullable count. Không lưu danh tính người thả reaction hoặc token.
 
-Không nối số đếm qua một lần đo lỗi hoặc thiếu. Chỉ so sánh hai mốc LIỀN KỀ của cùng đối tượng, cùng loại reaction; từ 12 giây tới 30 phút ở chu kỳ 10 phút. Snapshot trùng thời điểm, sai timestamp, ngắt lâu, hoặc thiếu count đều không được tạo ra một khoảng tăng hợp lệ.
+Không nối số đếm qua một lần đo lỗi hoặc thiếu. Chỉ so sánh hai mốc LIỀN KỀ của cùng đối tượng, cùng loại reaction; từ 12 giây tới 15 phút ở chu kỳ 10 phút. Snapshot trùng thời điểm, sai timestamp, ngắt lâu, hoặc thiếu count đều không được tạo ra một khoảng tăng hợp lệ.
 
 Cần tối thiểu 7 mốc hợp lệ và 6 khoảng liền kề đủ điều kiện trước khi đánh giá quy tắc bất thường hiện tại. Chất lượng, khoảng nghỉ, phần trăm thiếu và độ mới của nguồn dữ liệu được báo riêng; KHÔNG chuyển thành điểm chắc chắn bot.
 

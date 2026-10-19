@@ -21,6 +21,7 @@ import storage
 import reaction_collector
 import reaction_history
 from reaction_assessment import assess
+from research_baselines import compare
 from share_resolver import resolve_shortlink
 from scan import reference, validate_url
 from secret_store import TokenStoreError, synchronize_meta_token, credential_source
@@ -223,6 +224,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("ID Page/ảnh không hợp lệ.")
                 records = reaction_history.history(pid, oid, 500)
                 return self.json({"assessment": assess(records, kind),
+                                  "r1_research_comparison": compare(records, kind),
                                   "observations": [
                                      {"observed_at": r["observed_at"],
                                       "value": r["counts"].get(kind)}

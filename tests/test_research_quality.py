@@ -39,6 +39,14 @@ class QualityGateTests(unittest.TestCase):
         self.assertEqual(r["data_quality"]["long_gaps"],1)
         self.assertEqual(r["suspicious_window_reactions"],0)
 
+    def test_missing_poll_is_not_bridged_by_20_minute_gap(self):
+        series=[p(i*10,i*10) for i in range(6)]
+        series.append(p(70,500))
+        result=assess(series)
+        self.assertEqual(result["data_quality"]["long_gaps"],1)
+        self.assertEqual(result["data_quality"]["eligible_adjacent_intervals"],5)
+        self.assertIsNone(result["suspicious_window_reactions"])
+
     def test_duplicate_timestamps_are_not_extra_intervals(self):
         points=[p(i*10,i*10) for i in range(7)]+[p(60,900)]
         q=audit_series(points,"LOVE")
@@ -52,6 +60,29 @@ class QualityGateTests(unittest.TestCase):
         a=assess(points)
         self.assertGreaterEqual(a["data_quality"]["invalid_timestamps"],1)
         self.assertIsNone(a["suspicious_share_pct"])
+
+    def test_multiple_short_runs_do_not_make_sufficient_history(self):
+        # Four observed intervals + four observed intervals separated by a lost hour.
+        first=[p(i*10,100+i*10) for i in range(5)]
+        second=[p(120+i*10,200+i*10) for i in range(5)]
+        quality=audit_series(first+second)
+        result=assess(first+second)
+        self.assertEqual(quality["eligible_adjacent_intervals"],8)
+        self.assertEqual(quality["longest_contiguous_intervals"],4)
+        self.assertFalse(quality["ready_for_review"])
+        self.assertIsNone(result["suspicious_window_reactions"])
+
+    def test_negative_reaction_correction_breaks_contiguous_history(self):
+        readings=[p(i*10,100+i*10) for i in range(7)]
+        readings.append(p(70,90))
+        readings.append(p(80,900))
+        q=audit_series(readings)
+        outcome=assess(readings)
+        self.assertEqual(q["negative_corrections"],1)
+        self.assertEqual(q["longest_contiguous_intervals"],6)
+        self.assertEqual(q["eligible_adjacent_intervals"],7)
+        self.assertEqual(outcome["automatic_deduction"],0)
+        self.assertEqual(outcome["flagged_intervals"],0)
 
     def test_stale_is_data_freshness_not_bot_probability(self):
         q=audit_series([p(0,100)],now=START+timedelta(days=1))
