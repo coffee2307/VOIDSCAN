@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+*.py[cod]
+data/
+danh sách shares/
+*.csv
+*.xlsx
+*.xls
+*.xlsm
+*.jsonl
+.env
+.env.*
+!.env.example
+*.log
+.vscode/
+.idea/
+app.py
+main.py
+_audit_*.py
+Thumbs.db
+.DS_Store
