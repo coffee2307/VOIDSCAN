@@ -1,5 +1,7 @@
 # VOIDSCAN 3.0 — Guided Reaction Integrity Research Preview
 
+**Phase R1.6 — Monitoring readiness dashboard:** the History tab now shows active watches, saved snapshots, enough-history objects and monitor failures. Errors retain safe Meta failure categories (expired, permission, rate-limit, network) instead of one generic error. Diagnostics are read-only and require no valid token: `python research_cli.py readiness`. See [Monitoring Readiness](docs/R1_MONITOR_READINESS.md). No fake-bot accuracy or automatic sanctions are claimed.
+
 **Phase R1.5 — False-positive review and independent event replay:** each photo report can now record time-bounded promotion/sharing/advertising context without suppressing alerts. Researchers can recompute frozen R1 event flags from independently reviewed aggregate histories via `python research_cli.py replay --input ...`; no synthetic or user-asserted label becomes proven bot certainty. See [R1.5 False-positive Review](docs/R1_FALSE_POSITIVE_REPLAY.md).
 
 **Phase R1 statistical pilot now included:** three transparent historical-only candidate baselines (median/MAD, 95th percentile, mean/standard deviation) compare growth in authorized Page photo reactions. A collapsed UI panel explains model agreement without treating it as bot probability. No real-world fraud precision has been established; select an authorized photo and enable watch before collecting a time series. Read [R1 Statistical Pilot](docs/R1_STATISTICAL_PILOT.md).

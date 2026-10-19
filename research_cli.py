@@ -11,6 +11,7 @@ from reaction_collector import REACTIONS
 from research_quality import audit_series
 from research_validation import evaluate
 from research_replay import replay
+from research_readiness import readiness
 
 
 def audit_local(path=None):
@@ -56,10 +57,14 @@ def main(argv=None):
     ev.add_argument("--input",required=True,help="JSON document of independently reviewed events")
     rep=sub.add_parser("replay",help="Recompute frozen R1 flags from independent event snapshots")
     rep.add_argument("--input",required=True,help="JSON reviewed event histories, outside Git")
+    live=sub.add_parser("readiness",help="Read-only local monitoring diagnostics, no Meta token needed")
+    live.add_argument("--db",help="Local SQLite file; default VOIDSCAN DB")
     args=p.parse_args(argv)
     try:
         if args.cmd=="audit":
             result=audit_local(args.db)
+        elif args.cmd=="readiness":
+            result=readiness(args.db or reaction_history.DEFAULT_DB)
         else:
             path=Path(args.input)
             if path.stat().st_size > 4_000_000:

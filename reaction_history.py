@@ -198,10 +198,14 @@ def poll_active_once(path=DEFAULT_DB):
         try:
             sample=collect_once(w["page_id"],w["post_id"],w["object_id"])
             saved=store_observation(sample,path)
-            status=sample["reaction"]["status"] if saved else "unavailable"
+            api_error=sample["reaction"].get("api_error") or {}
+            status=sample["reaction"]["status"] if saved else str(api_error.get("kind") or "unavailable")[:30]
             update_watch(w["id"],status,path)
             outcomes.append({"id":w["id"],"status":status})
         except Exception as exc:
-            update_watch(w["id"],"error",path)
-            outcomes.append({"id":w["id"],"status":"error"})
+            # Persist only a known error category, never an API token or raw response.
+            from meta_pages import MetaAccessError
+            failure=exc.kind if isinstance(exc,MetaAccessError) else "error"
+            update_watch(w["id"],failure,path)
+            outcomes.append({"id":w["id"],"status":failure})
     return outcomes

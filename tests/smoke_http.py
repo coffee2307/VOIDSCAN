@@ -53,6 +53,12 @@ def main():
                 except (OSError, ValueError):
                     time.sleep(0.1)
             assert ready, "Server did not start"
+            diagnostics=get_json(base + "/api/research/readiness")
+            assert diagnostics["status"] == "no_data"
+            assert diagnostics["snapshots"] == 0
+            assert diagnostics["active_watches"] == 0
+            assert diagnostics["bot_probability_validated"] is False
+            assert diagnostics["automatic_deduction"] == 0
             pages = get_json(base + "/api/meta/pages")
             assert pages["status"] == "unconfigured" and pages["pages"] == []
             try:

@@ -76,6 +76,19 @@
   </section>
   <section id="view-history" class="view">
    <div class="page-heading"><div class="eyebrow"><span></span> DỮ LIỆU ĐÃ THU THẬP</div><h1>Lịch sử & <em>giám sát.</em></h1><p>Các đối tượng đang theo dõi và nhật ký quét. Dữ liệu lưu trên máy, không được đẩy lên GitHub.</p></div>
+   <section class="card history-card" id="research-readiness">
+    <div class="split-title"><div><h2>Tình trạng nghiên cứu & thu thập</h2><p class="field-help">Chẩn đoán từ dữ liệu trên máy; không tự gọi Meta hoặc sử dụng token.</p></div><button class="btn secondary small" id="readiness-refresh" type="button">Kiểm tra lại</button></div>
+    <div class="readiness-metrics">
+      <div class="readiness-metric"><span>Ảnh đang theo dõi</span><strong id="readiness-active">—</strong></div>
+      <div class="readiness-metric"><span>Snapshot lưu trữ</span><strong id="readiness-snapshots">—</strong></div>
+      <div class="readiness-metric"><span>Ảnh có lịch sử đủ dài</span><strong id="readiness-qualified">—</strong></div>
+      <div class="readiness-metric"><span>Ảnh theo dõi đang gặp lỗi</span><strong id="readiness-errors">—</strong></div>
+    </div>
+    <p class="readiness-verdict" id="readiness-verdict" role="status">Đang kiểm tra dữ liệu cục bộ…</p>
+    <p class="field-help" id="readiness-last"></p>
+    <p class="field-help" id="readiness-next"></p>
+    <p class="field-help">Tổng hợp này KHÔNG xác nhận tài khoản bot và không ước lượng xác suất gian lận.</p>
+   </section>
    <section class="card history-card"><div class="split-title"><h2>Ảnh và bài đăng đã theo dõi</h2><button class="btn secondary small" id="history-refresh" type="button">Làm mới</button></div><div id="watch-list" class="history-list"></div></section>
    <section class="card history-card"><div class="split-title"><h2>Nhật ký các lần quét bài đăng</h2><button class="btn quiet small" id="history-export" type="button">Xuất CSV</button></div><div id="scan-list" class="history-list"></div></section>
   </section>

@@ -285,11 +285,37 @@ async function toggleWatch(){
  }catch(e){notice(e.message,true)}finally{$("watch-btn").disabled=false}
 }
 function exportCSV(){if(!state.target)return notice("Chưa có ảnh để xuất.",true);location.href="/api/reactions/export.csv?"+new URLSearchParams({page_id:state.page,object_id:state.target.objectId})}
+async function loadReadiness(){
+ const labels={
+  no_data:"Chưa có dữ liệu đủ để nghiên cứu",
+  not_monitoring:"Chưa bật theo dõi định kỳ cho ảnh nào",
+  monitor_errors:"Có lỗi ở các đối tượng đang theo dõi",
+  monitor_stale:"Giám sát đang bị gián đoạn hoặc chưa kiểm tra lần đầu",
+  collecting:"Đang tích lũy lịch sử reaction",
+  observing_with_history:"Đã có chuỗi đủ mốc để bắt đầu phân tích thống kê"
+ };
+ try{
+  const data=await req("/api/research/readiness");
+  setText("readiness-active",nf(data.active_watches));
+  setText("readiness-snapshots",nf(data.snapshots));
+  setText("readiness-qualified",nf(data.objects_with_usable_history));
+  setText("readiness-errors",nf(data.active_errors));
+  setText("readiness-verdict",labels[data.status]||"Cần kiểm tra dữ liệu");
+  $("readiness-verdict").className="readiness-verdict "+(data.active_errors||data.status==="monitor_stale"?"warn":"");
+  const last=data.latest_snapshot_at?new Date(data.latest_snapshot_at).toLocaleString("vi-VN"):"Chưa có";
+  const checked=data.latest_monitor_check_at?new Date(data.latest_monitor_check_at).toLocaleString("vi-VN"):"Chưa thực hiện";
+  setText("readiness-last","Mốc reaction gần nhất: "+last+" · Lần giám sát gần nhất: "+checked);
+  setText("readiness-next",(data.instructions||[]).join(" "));
+ }catch(e){
+  setText("readiness-verdict","Không đọc được trạng thái nghiên cứu");
+  setText("readiness-next",e.message);
+ }
+}
 function navigate(name){
  document.querySelectorAll(".nav-button").forEach(x=>x.classList.toggle("active",x.dataset.view===name));
  document.querySelectorAll(".view").forEach(x=>x.classList.toggle("active",x.id==="view-"+name));
  setText("top-title",({scan:"Quét tương tác",history:"Theo dõi & lịch sử",method:"Hiểu kết quả"})[name]);
- if(name==="history")loadHistory();window.scrollTo({top:0,behavior:"smooth"});
+ if(name==="history"){loadReadiness();loadHistory()}window.scrollTo({top:0,behavior:"smooth"});
 }
 async function loadHistory(){
  const watches=$("watch-list"),scans=$("scan-list");watches.replaceChildren();scans.replaceChildren();
@@ -326,7 +352,8 @@ $("scan-btn").addEventListener("click",scan);
 $("watch-btn").addEventListener("click",toggleWatch);
 $("export-btn").addEventListener("click",exportCSV);
 $("refresh-all").addEventListener("click",loadPages);
-$("history-refresh").addEventListener("click",loadHistory);
+$("history-refresh").addEventListener("click",()=>{loadHistory();loadReadiness()});
+$("readiness-refresh").addEventListener("click",loadReadiness);
 $("history-export").addEventListener("click",()=>location.href="/api/export-history.csv");
 document.querySelectorAll(".nav-button").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.view)));
 loadPages();
