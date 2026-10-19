@@ -13,6 +13,11 @@ from pathlib import Path
 
 from secret_store import TokenStoreError, read_meta_user_token
 
+# Windows consoles can default to CP1258, which cannot encode many Vietnamese
+# characters. Never let a diagnostic print crash the one-click launcher.
+if os.name == "nt" and hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(errors="replace")
+
 ROOT = Path(__file__).resolve().parent
 PORT = int(os.environ.get("VOIDSCAN_PORT", "3000"))
 URL = f"http://127.0.0.1:{PORT}"
@@ -37,14 +42,11 @@ def ensure_credentials():
             return True
     except TokenStoreError as exc:
         print(f"Không đọc được token lưu trước đó: {exc}")
-    if not sys.stdin.isatty():
-        print("Chưa có token lưu. Hãy chạy setup-voidscan-token.bat một lần.")
-        return False
     print("Chưa lưu Access Token cho phiên khởi động sau.")
-    print("Bạn chỉ cần thiết lập một lần ngay trong cửa sổ này.")
-    from manage_token import enroll
+    print("VOIDSCAN đang mở hộp thoại để bạn dán token một lần.")
+    from token_dialog import enroll_gui
     try:
-        return enroll()
+        return enroll_gui()
     except (TokenStoreError, OSError, KeyboardInterrupt) as exc:
         print("Không thiết lập được token: " + str(exc))
         return False

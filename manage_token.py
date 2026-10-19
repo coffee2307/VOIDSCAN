@@ -30,10 +30,13 @@ def enroll() -> bool:
 def main(argv=None):
     parser = argparse.ArgumentParser(description="VOIDSCAN local Meta token manager")
     parser.add_argument("action", nargs="?", default="set",
-                        choices=("set", "status", "delete"))
+                        choices=("set", "terminal", "status", "delete"))
     args = parser.parse_args(argv)
     try:
         if args.action == "set":
+            from token_dialog import enroll_gui
+            return 0 if enroll_gui() else 2
+        if args.action == "terminal":
             return 0 if enroll() else 2
         if args.action == "status":
             available = read_meta_user_token()

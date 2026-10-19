@@ -6,9 +6,9 @@ VOIDSCAN sử dụng Windows Data Protection API (DPAPI) thay vì lưu token th�
 
 1. Mở F:\VOIDSCAN bằng File Explorer.
 2. Nhấp đúp **setup-voidscan-token.bat**.
-3. Dán Meta **User Access Token** vào cửa sổ CMD. Ký tự nhập sẽ không hiện trên màn hình.
-4. Đợi thông báo "Đã lưu token mã hóa thành công".
-5. Dừng server VOIDSCAN cũ một lần nếu nó còn hoạt động, sau đó nhấp đúp **start-voidscan.bat**.
+3. Một **cửa sổ nhập token riêng của Windows** sẽ xuất hiện. Sao chép Meta **User Access Token**, nhấn `Ctrl + V` trong ô nhập hoặc nhấn nút **Dán từ clipboard**. Có thể nhấp chuột phải vào ô nhập → **Dán**. Nội dung được che bằng dấu chấm, không cần dán vào cửa sổ CMD màu đen.
+4. Nhấn **Lưu token**. Chỉ sau khi có thông báo thành công thì token mới được lưu mã hóa. Nếu bạn nhấn Hủy, token cũ sẽ giữ nguyên.
+5. Dừng server VOIDSCAN cũ một lần nếu nó còn hoạt động, sau đó nhấp đúp **start-voidscan.bat**. Nếu clipboard vẫn giữ đúng token vừa lưu, hộp thoại sẽ xóa nội dung clipboard để giảm nguy cơ vô tình dán lộ token.
 
 Cách khác: PowerShell trong thư mục dự án:
 
