@@ -88,8 +88,6 @@ def readiness(path=DEFAULT_DB, now=None, poll_seconds=600):
                 result["active_errors"]+=1
                 statuses[kind]=statuses.get(kind,0)+1
             check_age=_elapsed(now,w["last_checked"])
-            if check_age is None or check_age > max(2.5 * poll_seconds, 1800):
-                result["active_stale"]+=1
             records=db.execute("""
                SELECT observed_at, counts_json FROM reaction_snapshots
                WHERE page_id=? AND object_id=? ORDER BY observed_at DESC, id DESC LIMIT 500
@@ -102,6 +100,12 @@ def readiness(path=DEFAULT_DB, now=None, poll_seconds=600):
                     data={}
                 points.append({"observed_at":r["observed_at"],
                                "counts":data if isinstance(data,dict) else {}})
+            # A newly activated watch may have a fresh manual scan while the
+            # first automatic poll is not yet due. Do not label it stale.
+            last_observation_age=_elapsed(now,points[-1]["observed_at"]) if points else None
+            freshness=[t for t in (check_age,last_observation_age) if t is not None]
+            if not freshness or min(freshness)>max(2.5*poll_seconds,1800):
+                result["active_stale"]+=1
             valid_types=0
             for reaction in REACTIONS:
                 if audit_series(points,reaction,now=now)["ready_for_review"]:

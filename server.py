@@ -450,19 +450,21 @@ class Handler(BaseHTTPRequestHandler):
             return self.json({"error": "Lỗi máy chủ"}, 500)
 
 def reaction_monitor_loop():
-    # Never collect when the server is not configured with a token.
-    # The thread stops with the local server process; it is not a cloud service.
+    # Check scheduling frequently, but never call Meta before a watch is due.
+    # Startup/restart does not impose a new 10-minute waiting period and recent
+    # manual scans do not create artificially close monitoring snapshots.
+    # The thread stops with the local server process; not a cloud monitor.
     while True:
-        time.sleep(REACTION_POLL_SECONDS)
         try:
             synchronize_meta_token()
-            if configured_mode()=="none":
-                continue
-            outcome=reaction_history.poll_active_once()
-            if outcome:
-                logging.info("Reaction monitor: %d tracked objects checked",len(outcome))
+            if configured_mode()!="none":
+                outcome=reaction_history.poll_active_once(
+                    due_only=True,poll_seconds=REACTION_POLL_SECONDS)
+                if outcome:
+                    logging.info("Reaction monitor: %d due objects checked",len(outcome))
         except Exception:
             logging.exception("Reaction monitor failed")
+        time.sleep(min(30,max(5,REACTION_POLL_SECONDS//10)))
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")

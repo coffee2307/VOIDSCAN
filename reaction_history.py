@@ -189,12 +189,39 @@ def update_watch(id_, status, path=DEFAULT_DB):
                    (datetime.now(timezone.utc).isoformat(timespec="seconds"),
                     str(status)[:30],id_))
 
-def poll_active_once(path=DEFAULT_DB):
-    """Bounded polling; any Meta failure is logged as status, not a count=0."""
+def _watch_is_due(row, path, now, poll_seconds):
+    """Avoid duplicate API measurements after a recent scan or recent poll."""
+    if not 300 <= poll_seconds <= 3600:
+        raise ValueError("Invalid reaction polling cadence")
+    timestamps=[parse_utc(row.get("last_checked"))]
+    with LOCK, closing(connection(path)) as db:
+        most_recent=db.execute("""SELECT MAX(observed_at) AS observed
+            FROM reaction_snapshots WHERE page_id=? AND object_id=?""",
+            (row["page_id"],row["object_id"])).fetchone()
+    timestamps.append(parse_utc(most_recent["observed"]) if most_recent else None)
+    timestamps=[t for t in timestamps if t is not None]
+    if not timestamps:
+        return True
+    return (now-max(timestamps)).total_seconds() >= poll_seconds
+
+
+def poll_active_once(path=DEFAULT_DB, *, due_only=False, poll_seconds=600, now=None):
+    """Bounded polling; never turn missing Meta data into zero reactions.
+
+    due_only=True is for the scheduler. Manual/test callers default to one
+    explicit attempt; the scheduler must not poll a freshly scanned object.
+    """
     from reaction_collector import collect_once
+    if not 300 <= poll_seconds <= 3600:
+        raise ValueError("Invalid reaction polling cadence")
+    now=now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        raise ValueError("Expected timezone-aware current time")
     watches=[row for row in watch_list(path) if row["active"]][:20]
     outcomes=[]
     for w in watches:
+        if due_only and not _watch_is_due(w,path,now,poll_seconds):
+            continue
         try:
             sample=collect_once(w["page_id"],w["post_id"],w["object_id"])
             saved=store_observation(sample,path)

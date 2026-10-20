@@ -18,6 +18,8 @@ Lệnh cục bộ:
 
 API nội bộ GET /api/research/readiness sử dụng SQLite read-only (mode=ro), không ghi dữ liệu, không gọi mạng.
 
+**Cập nhật bộ lập lịch:** server kiểm tra ảnh đang giám sát sau khi khởi động và mỗi khoảng 30 giây, nhưng chỉ gọi Meta khi ảnh đã đến hạn (mặc định 600 giây kể từ lượt quét thành công hoặc lần thử giám sát gần nhất). Một ảnh vừa quét thủ công sẽ không được đo lại quá sớm. Sau khi khởi động lại server, lịch được xác định từ timestamp SQLite, không phải chờ nguyên một chu kỳ mới. Nếu token hết hạn, các lần thử sau đó chỉ thực hiện khi đến hạn; không truy cập Meta liên tục. Máy và server vẫn phải chạy để thu thập dữ liệu.
+
 Các lỗi từ lần giám sát được phân loại theo kind, ví dụ expired, rate_limit, permission, network, not_found, error. Không lưu token hoặc thông báo lỗi Graph thô.
 
 Hệ thống chỉ coi chuỗi đủ để áp dụng thuật toán thống kê khi đạt ít nhất 7 mốc/6 khoảng liền kề hợp lệ trên cùng ảnh và cùng reaction. Điều kiện này KHÔNG xác nhận rằng chỉ báo bất thường là gian lận.
