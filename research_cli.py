@@ -14,6 +14,7 @@ from research_validation import evaluate
 from research_replay import replay
 from research_readiness import readiness
 from research_bundle import build_bundle, verify_bundle
+from research_adjudication import curate
 
 
 def audit_local(path=None):
@@ -66,6 +67,9 @@ def main(argv=None):
     exp.add_argument("--db",help="Source local SQLite; default VOIDSCAN DB")
     verify=sub.add_parser("verify-bundle",help="Verify research bundle checksum (not provenance)")
     verify.add_argument("--input",required=True,help="Previously exported JSON research bundle")
+    adjud=sub.add_parser("adjudicate",help="Require independent human reviews before R2 replay")
+    adjud.add_argument("--input",required=True,help="Private blinded reviewer cases JSON")
+    adjud.add_argument("--output",required=True,help="New replay-ready JSON; refuses overwrite")
     args=p.parse_args(argv)
     try:
         if args.cmd=="audit":
@@ -93,6 +97,32 @@ def main(argv=None):
                     "snapshots":sum(len(x["observations"]) for x in bundle["payload"]["objects"]),
                     "sha256":bundle["integrity"]["payload_sha256"],
                     "note":"Local-only research data; not proof of bot accounts."}
+        elif args.cmd=="adjudicate":
+            source=Path(args.input)
+            if source.stat().st_size > 8_000_000:
+                raise ValueError("Reviewer input file too large")
+            output=Path(args.output).resolve()
+            root=Path(__file__).resolve().parent
+            if output.is_relative_to(root) and not output.is_relative_to(root/"data"):
+                raise ValueError("Reviewed cases must be stored outside tracked source code")
+            if not output.parent.is_dir():
+                raise ValueError("Output directory does not exist")
+            if source.resolve()==output:
+                raise ValueError("Input and output cannot be the same file")
+            curated=curate(json.loads(source.read_text(encoding="utf-8")))
+            serialized=json.dumps(curated,ensure_ascii=False,indent=2).encode("utf-8")
+            fd=os.open(output,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+            try:
+                with os.fdopen(fd,"wb") as target:
+                    target.write(serialized)
+            except BaseException:
+                output.unlink(missing_ok=True)
+                raise
+            result={"status":"saved_reviewed_cases",
+                    "submitted":curated["review_audit"]["submitted"],
+                    "accepted":curated["review_audit"]["accepted_for_replay"],
+                    "excluded":curated["review_audit"]["excluded"],
+                    "external_evidence_authenticity_verified":False}
         elif args.cmd=="verify-bundle":
             source=Path(args.input)
             if source.stat().st_size > 20000000:
