@@ -1,5 +1,7 @@
 # VOIDSCAN 3.0 — Guided Reaction Integrity Research Preview
 
+**Phase R2 data preparation (experimental):** export a privacy-reduced bundle of locally stored aggregate reaction histories from the History tab. Raw Facebook Page/photo IDs, URLs, token and names are excluded; identifiers are randomized per export. Integrity SHA-256 detects file modification, not authenticity. Optional commands: `python research_cli.py bundle --output ...` and `python research_cli.py verify-bundle --input ...`. See [R2 Research Bundle](docs/R2_RESEARCH_BUNDLE.md). This is NOT validated fraud classification.
+
 **Phase R1.6 — Monitoring readiness dashboard:** the History tab now shows active watches, saved snapshots, enough-history objects and monitor failures. Errors retain safe Meta failure categories (expired, permission, rate-limit, network) instead of one generic error. Diagnostics are read-only and require no valid token: `python research_cli.py readiness`. See [Monitoring Readiness](docs/R1_MONITOR_READINESS.md). No fake-bot accuracy or automatic sanctions are claimed.
 
 **Phase R1.5 — False-positive review and independent event replay:** each photo report can now record time-bounded promotion/sharing/advertising context without suppressing alerts. Researchers can recompute frozen R1 event flags from independently reviewed aggregate histories via `python research_cli.py replay --input ...`; no synthetic or user-asserted label becomes proven bot certainty. See [R1.5 False-positive Review](docs/R1_FALSE_POSITIVE_REPLAY.md).

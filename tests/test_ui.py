@@ -48,6 +48,7 @@ class InterfaceTests(unittest.TestCase):
         self.assertIn("/api/research/readiness",js)
         self.assertIn("loadReadiness",js)
         self.assertIn("readiness-refresh",js)
+        self.assertIn("research-download",js)
         self.assertIn('id="readiness-active"',(WEB/"index.html").read_text(encoding="utf-8"))
         self.assertIn('id="context-form"',(WEB/"index.html").read_text(encoding="utf-8"))
         self.assertIn('id="context-list"',(WEB/"index.html").read_text(encoding="utf-8"))

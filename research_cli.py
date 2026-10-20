@@ -2,6 +2,7 @@
 from __future__ import annotations
 import argparse
 import json
+import os
 from contextlib import closing
 from collections import Counter
 from pathlib import Path
@@ -12,6 +13,7 @@ from research_quality import audit_series
 from research_validation import evaluate
 from research_replay import replay
 from research_readiness import readiness
+from research_bundle import build_bundle, verify_bundle
 
 
 def audit_local(path=None):
@@ -59,12 +61,47 @@ def main(argv=None):
     rep.add_argument("--input",required=True,help="JSON reviewed event histories, outside Git")
     live=sub.add_parser("readiness",help="Read-only local monitoring diagnostics, no Meta token needed")
     live.add_argument("--db",help="Local SQLite file; default VOIDSCAN DB")
+    exp=sub.add_parser("bundle",help="Create privacy-preserving aggregate research bundle explicitly")
+    exp.add_argument("--output",required=True,help="New JSON path; refuses overwrite")
+    exp.add_argument("--db",help="Source local SQLite; default VOIDSCAN DB")
+    verify=sub.add_parser("verify-bundle",help="Verify research bundle checksum (not provenance)")
+    verify.add_argument("--input",required=True,help="Previously exported JSON research bundle")
     args=p.parse_args(argv)
     try:
         if args.cmd=="audit":
             result=audit_local(args.db)
         elif args.cmd=="readiness":
             result=readiness(args.db or reaction_history.DEFAULT_DB)
+        elif args.cmd=="bundle":
+            output=Path(args.output).resolve()
+            root=Path(__file__).resolve().parent
+            # Prevent accidental commit of an export to a tracked project directory.
+            if output.is_relative_to(root) and not output.is_relative_to(root/"data"):
+                raise ValueError("Research bundles must be outside the tracked repository")
+            if not output.parent.is_dir():
+                raise ValueError("Output directory does not exist")
+            bundle=build_bundle(args.db or reaction_history.DEFAULT_DB)
+            data=json.dumps(bundle,ensure_ascii=False,indent=2).encode("utf-8")
+            fd=os.open(output,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+            try:
+                with os.fdopen(fd,"wb") as target:
+                    target.write(data)
+            except BaseException:
+                output.unlink(missing_ok=True)
+                raise
+            result={"status":"saved","objects":len(bundle["payload"]["objects"]),
+                    "snapshots":sum(len(x["observations"]) for x in bundle["payload"]["objects"]),
+                    "sha256":bundle["integrity"]["payload_sha256"],
+                    "note":"Local-only research data; not proof of bot accounts."}
+        elif args.cmd=="verify-bundle":
+            source=Path(args.input)
+            if source.stat().st_size > 20000000:
+                raise ValueError("Bundle too large")
+            checked=verify_bundle(json.loads(source.read_text(encoding="utf-8")))
+            result={"valid_payload_checksum":checked,
+                    "source_authenticity_verified":False}
+            print(json.dumps(result,ensure_ascii=True,indent=2))
+            return 0 if checked else 2
         else:
             path=Path(args.input)
             if path.stat().st_size > 4_000_000:

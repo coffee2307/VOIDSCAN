@@ -354,6 +354,7 @@ $("export-btn").addEventListener("click",exportCSV);
 $("refresh-all").addEventListener("click",loadPages);
 $("history-refresh").addEventListener("click",()=>{loadHistory();loadReadiness()});
 $("readiness-refresh").addEventListener("click",loadReadiness);
+$("research-download").addEventListener("click",()=>{location.href="/api/research/bundle.json"});
 $("history-export").addEventListener("click",()=>location.href="/api/export-history.csv");
 document.querySelectorAll(".nav-button").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.view)));
 loadPages();

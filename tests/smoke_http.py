@@ -53,6 +53,11 @@ def main():
                 except (OSError, ValueError):
                     time.sleep(0.1)
             assert ready, "Server did not start"
+            bundle=get_json(base + "/api/research/bundle.json")
+            assert bundle["payload"]["objects"] == []
+            assert bundle["payload"]["automatic_deduction"] == 0
+            assert bundle["payload"]["confirmed_manipulation_labels"] == 0
+            assert len(bundle["integrity"]["payload_sha256"]) == 64
             diagnostics=get_json(base + "/api/research/readiness")
             assert diagnostics["status"] == "no_data"
             assert diagnostics["snapshots"] == 0

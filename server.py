@@ -22,6 +22,7 @@ import reaction_collector
 import reaction_history
 import reaction_context
 from research_readiness import readiness
+from research_bundle import build_bundle
 from reaction_assessment import assess
 from research_baselines import compare
 from share_resolver import resolve_shortlink
@@ -132,6 +133,12 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if u.path.startswith("/api/"):
                 synchronize_meta_token()
+            if u.path == "/api/research/bundle.json":
+                # Explicit local download; no API credentials, no raw Page/photo IDs.
+                bundle=build_bundle()
+                return self.respond(200,json.dumps(bundle,ensure_ascii=False,indent=2).encode("utf-8"),
+                                    "application/json; charset=utf-8",
+                                    "voidscan-r2-research-bundle.json")
             if u.path == "/api/research/readiness":
                 # Offline evidence health: NEVER make a Facebook API request here.
                 return self.json(readiness(poll_seconds=REACTION_POLL_SECONDS))
