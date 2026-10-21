@@ -1,12 +1,14 @@
 (() => {
 "use strict";
 const $=id=>document.getElementById(id);
-const FILE=window.VoidscanFileAudit,LIB=window.VoidscanAudit, XLSX=window.VoidscanXlsx,INTEGRITY=window.VoidscanIntegrity,PROFILE=window.VoidscanProfileImport,PUBLIC=window.VoidscanPublicMetadata;
+const FILE=window.VoidscanFileAudit,LIB=window.VoidscanAudit, XLSX=window.VoidscanXlsx,INTEGRITY=window.VoidscanIntegrity,PROFILE=window.VoidscanProfileImport,PUBLIC=window.VoidscanPublicMetadata,AUTO=window.VoidscanAutoAudit;
 const STORAGE_REACTIONS="voidscan_reactions_v1",STORAGE_PENDING="voidscan_pending_reactions_v1";
 const STORAGE_DECISIONS="voidscan_screening_reviews_v1",STORAGE_COUNTS="voidscan_visible_reaction_counts_v2",PROFILE_STORE="voidscan_profile_observations_v1",MAX_CSV_BYTES=15*1024*1024;
 let scanToken=0,source=[],allSource=[],sourceOrigin="",profiles=[],results=[],byUrl=new Map(),chosen="",decisionMap={};
 let sourceLabel="Dữ liệu trong Chrome",integrityReport=null,profileSource=[];
 let metadataBusy=false,metadataStop=false;const ATTEMPT_STORE="voidscan_public_metadata_attempts_v1";
+const AUTO_STORE="voidscan_auto_audit_state_v1";
+let autoBusy=false,autoAbort=null,autoPauseRequested=false,autoSession=null;
 let reviewTabId=null,reviewTabTarget="";
 const stateText=t=>{$("manual-review-state").textContent=t;};
 let currentProgress={done:0,total:0,flagged:0,clear:0,insufficient:0,quality:0};
@@ -231,7 +233,116 @@ async function scanScope(){
   (photo==="all"?" · Tất cả ảnh":" · Ảnh "+photo)+
   (profileSource.length?" · có dữ liệu hồ sơ bổ sung":""));
 }
+function showAutoProgress(state){
+ const s=state||{};
+ const total=Array.isArray(s.urls)?s.urls.length:0,done=Math.min(total,Number(s.index)||0);
+ const pct=total?Math.round(done/total*100):0;
+ $("auto-track").setAttribute("aria-valuenow",pct);
+ $("auto-bar").style.width=pct+"%";
+ const names={ready:"Sẵn sàng",running:"Đang chạy",paused:"Tạm dừng",
+   blocked:"Đã dừng do Facebook hạn chế truy cập",complete:"Hoàn thành"};
+ $("auto-state").textContent=names[s.status]||"Chưa có hàng đợi";
+ $("auto-progress").textContent=total?
+  fmt(done)+"/"+fmt(total)+" URL · "+pct+"% · "+
+  fmt(s.usable)+" có metadata dùng được · "+fmt(s.unavailable)+" thiếu dữ liệu/không thể đọc · "+
+  fmt(s.skipped)+" được bỏ qua vì đã xử lý/có dữ liệu. "+
+  (s.stopReason||""):
+  "Nhập CSV reaction, bấm Auto Audit một lần. Tiến độ được lưu trong Chrome.";
+ $("auto-pause").disabled=!autoBusy;
+ $("auto-start").disabled=autoBusy;
+}
+async function persistAuto(queue,profilesMap,attempts){
+ queue.updatedAt=new Date().toISOString();
+ autoSession=queue;
+ // Save progress after every URL so pauses and tab reloads lose at most the current request.
+ await chrome.storage.local.set({[AUTO_STORE]:queue,[PROFILE_STORE]:profilesMap,[ATTEMPT_STORE]:attempts});
+ showAutoProgress(queue);
+}
+async function startAutoAudit(){
+ if(autoBusy)return;
+ if(metadataBusy){msg("Vui lòng đợi lần thử metadata 10 hồ sơ hoàn tất.");return;}
+ if(!AUTO||!PUBLIC){msg("Chưa tải được mô-đun Auto Audit.");return;}
+ const stored=(await chrome.storage.local.get(AUTO_STORE))[AUTO_STORE];
+ const candidate=allSource.length?AUTO.plan(FILE.normaliseRows(allSource).rows):stored?.urls||[];
+ if(!candidate.length){msg("Chưa có URL. Nhập CSV reaction hoặc lấy dữ liệu từ tiện ích trước.");return;}
+ const approved=await chrome.permissions.request({origins:["https://www.facebook.com/*"]});
+ if(!approved){msg("Cần cấp quyền Facebook để truy cập metadata công khai. Không có quyền sẽ không chạy.");return;}
+ let q=AUTO.create(candidate,stored);
+ if(q.index>=q.urls.length)q=AUTO.create(candidate,null);
+ q.status="running";q.stopReason="";
+ autoBusy=true;autoPauseRequested=false;autoAbort=new AbortController();
+ const state=await chrome.storage.local.get([PROFILE_STORE,ATTEMPT_STORE]);
+ const profilesMap=state[PROFILE_STORE]||{},attempts=state[ATTEMPT_STORE]||{};
+ let consecutiveNetworkErrors=0;
+ try{
+  await persistAuto(q,profilesMap,attempts);
+  while(q.index<q.urls.length){
+   if(autoPauseRequested){q.status="paused";q.stopReason="Đã tạm dừng theo yêu cầu.";break;}
+   const url=q.urls[q.index],existing=profilesMap[url],attempt=attempts[url];
+   if(existing||AUTO.reuseAttempt(attempt)){
+     q.skipped++;q.index++;
+     await persistAuto(q,profilesMap,attempts);
+     continue;
+   }
+   // Public HTML without cookies; no authenticated tab scraping.
+   const outcome=await PUBLIC.get(url,fetch,DOMParser,autoAbort.signal);
+   if(outcome.access==="cancelled"||autoPauseRequested){
+     q.status="paused";q.stopReason="Đã tạm dừng.";break;
+   }
+   attempts[url]={at:new Date().toISOString(),status:outcome.access};
+   if(outcome.access==="network_error")consecutiveNetworkErrors++;
+   else consecutiveNetworkErrors=0;
+   if(AUTO.halt(outcome.access,consecutiveNetworkErrors)){
+     q.status="blocked";
+     q.stopReason=outcome.access==="rate_limited"?"Facebook giới hạn tốc độ; không thử vượt chặn.":
+       outcome.access==="restricted"?"Facebook yêu cầu đăng nhập/xác minh; không thử vượt chặn.":
+       "Nhiều lỗi mạng liên tiếp; đã dừng để tránh tiếp tục truy xuất.";
+     await persistAuto(q,profilesMap,attempts);break;
+   }
+   const usable=AUTO.metadata(outcome,url);
+   if(usable){profilesMap[url]=usable;q.usable++;}
+   else q.unavailable++;
+   q.attempted++;q.index++;
+   await persistAuto(q,profilesMap,attempts);
+   if(q.index%10===0&&allSource.length)await scanScope();
+   if(q.index<q.urls.length){
+     // Deliberately conservative sequential pacing; keep tab open.
+     await sleep(AUTO.WAIT_MS);
+   }
+  }
+  if(q.index>=q.urls.length){q.status="complete";q.stopReason="Đã thử toàn bộ URL trong hàng đợi.";}
+  else if(q.status==="running"){q.status="paused";q.stopReason="Tạm dừng.";}
+  await persistAuto(q,profilesMap,attempts);
+  if(allSource.length)await scanScope();
+  const resultText="Auto Audit: "+fmt(q.index)+"/"+fmt(q.urls.length)+" URL, "+
+   fmt(q.usable)+" có metadata dùng được, "+fmt(q.unavailable)+" chưa đủ dữ liệu. "+q.stopReason;
+  msg(resultText);
+ }catch(e){
+  q.status="paused";q.stopReason="Lỗi xử lý: "+(e.message||"không xác định");
+  await persistAuto(q,profilesMap,attempts).catch(()=>{});
+  msg(q.stopReason);
+ }finally{
+  autoBusy=false;autoAbort=null;
+  showAutoProgress(q);
+ }
+}
+function pauseAutoAudit(){
+ if(!autoBusy)return;
+ autoPauseRequested=true;
+ autoAbort?.abort();
+ $("auto-pause").disabled=true;
+}
+async function refreshAutoState(){
+ const stored=(await chrome.storage.local.get(AUTO_STORE))[AUTO_STORE];
+ if(!autoBusy&&stored?.status==="running"){
+   stored.status="paused";
+   stored.stopReason="Phiên trước đã đóng hoặc tải lại. Nhấn Bắt đầu để tiếp tục tại URL chưa xử lý.";
+   await chrome.storage.local.set({[AUTO_STORE]:stored});
+ }
+ if(!autoBusy)showAutoProgress(stored);
+}
 async function fetchPublicBatch(){
+ if(autoBusy){msg("Auto Audit đang chạy; hãy tạm dừng trước khi dùng công cụ thử 10 hồ sơ.");return;}
  if(metadataBusy||!PUBLIC||!results.length)return;
  if(!chrome.permissions?.request){msg("Trình duyệt không hỗ trợ quyền metadata tùy chọn.");return;}
  const approved=await chrome.permissions.request({origins:["https://www.facebook.com/*"]});
@@ -418,9 +529,11 @@ function nextProfile(){
  else msg("Đã đến cuối danh sách trong bộ lọc hiện tại.");
 }
 chrome.storage.onChanged?.addListener((changes,area)=>{
- if(area==="local"&&changes[PROFILE_STORE]&&allSource.length)
+ if(area==="local"&&changes[PROFILE_STORE]&&allSource.length&&!autoBusy)
    scanScope().catch(e=>msg("Không cập nhật được dữ liệu hồ sơ: "+e.message));
 });
+$("auto-start").addEventListener("click",()=>startAutoAudit().catch(e=>msg("Auto Audit không chạy: "+e.message)));
+$("auto-pause").addEventListener("click",pauseAutoAudit);
 $("fetch-public-profiles").addEventListener("click",()=>fetchPublicBatch().catch(e=>msg("Lỗi truy xuất: "+e.message)));
 $("source-local").addEventListener("click",()=>loadFromChrome().catch(e=>msg("Lỗi đọc dữ liệu Chrome: "+e.message)));
 $("photo-scope").addEventListener("change",()=>scanScope().catch(e=>msg("Lỗi thay đổi phạm vi ảnh: "+e.message)));
@@ -473,5 +586,6 @@ $("copy").addEventListener("click",()=>{
 });
 // No external fetch(), profile visits, tracking or upload. Optional initial scan
 // uses only local extension records. User-imported file remains memory-only.
-loadFromChrome().catch(e=>msg("Chưa có dữ liệu local. Chọn CSV từ popup: "+e.message));
+loadFromChrome().then(refreshAutoState).catch(e=>msg("Chưa có dữ liệu local. Chọn CSV từ popup: "+e.message));
+refreshAutoState().catch(()=>{});
 })();

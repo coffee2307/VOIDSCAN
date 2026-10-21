@@ -1,4 +1,18 @@
-# VOIDSCAN Reaction Audit — Chrome Extension 0.5.2
+# VOIDSCAN Reaction Audit — Chrome Extension 0.6.0
+
+## 0.6.0 — Auto Audit một lần bấm cho toàn bộ danh sách CSV
+
+- Nhập CSV reaction, bấm **Bắt đầu Auto Audit toàn bộ** một lần và cấp quyền Facebook cho trình duyệt. VOIDSCAN tự thử các URL lần lượt (một luồng, nghỉ 3,5 giây giữa các yêu cầu) bằng HTML metadata công khai không dùng cookie. Không mở hàng trăm tab hoặc yêu cầu bấm từng hồ sơ.
+- Ghi tiến độ từng URL vào Chrome storage và hiện tổng số đã thử, metadata dùng được, chưa đủ dữ liệu, đã bỏ qua. **Tạm dừng** có thể hủy yêu cầu đang tải; bấm Bắt đầu để tiếp tục từ vị trí được lưu. Khi tab bị đóng, mở lại sẽ báo tạm dừng; cần nhấn Bắt đầu để tiếp tục.
+- Khi có rate_limited, restricted, checkpoint/login hoặc ba lỗi mạng liên tiếp, **dừng**. Không vượt CAPTCHA, không dùng cookie phiên hoặc API nội bộ. Những hồ sơ không trả metadata sẽ giữ nhóm **chưa đủ dữ liệu**, không tự gắn nhãn bot.
+- Mặc định chạy tối đa 2.000 URL duy nhất từ CSV; có cơ chế tránh thử lại URL mới thất bại trong vòng 24 giờ, không mất công quét trùng. Kết quả có thể ghép với dữ liệu từ FBFriends hoặc quan sát thủ công trước đây.
+- Trang kiểm toán cần được **giữ mở** trong khi Auto Audit chạy; cơ chế này chạy trong trang extension chứ không phải dịch vụ nền vĩnh viễn.
+- Không tự động thu gom ngày sinh, giới tính, email, số điện thoại, danh sách bạn bè hoặc nội dung bài đăng của người khác. **Metadata công khai có thể rất hạn chế**, tùy quyền Facebook; tỷ lệ truy xuất không phải tỷ lệ phát hiện bot.
+- Kiểm thử: node chrome-extension/test-auto-audit.cjs và python tests/auto_audit_browser_smoke.py.
+
+**Cài bản mới:** chrome://extensions → Reload VOIDSCAN → mở trang kiểm toán → chọn CSV reaction → Bắt đầu Auto Audit toàn bộ.
+
+
 
 ## 0.5.2 — Rà soát lần lượt trong tab Chrome
 
