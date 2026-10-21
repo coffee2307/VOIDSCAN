@@ -29,6 +29,9 @@ jobs:
           node --check chrome-extension/content.js
           node --check chrome-extension/review-lib.js
           node --check chrome-extension/review.js
+          node --check chrome-extension/file-audit.js
+          node --check chrome-extension/xlsx-export.js
+          node chrome-extension/test-file-audit.cjs
           node chrome-extension/test-lib.cjs
           node chrome-extension/test-review.cjs
       - name: Isolated HTTP smoke

@@ -1,4 +1,23 @@
-# VOIDSCAN Reaction Audit — Chrome Extension 0.3.2
+# VOIDSCAN Reaction Audit — Chrome Extension 0.4.0
+
+## Mới ở phiên bản 0.4.0 — CSV → sàng lọc → Excel
+
+**Trong popup**: tiếp tục dùng chức năng thu thập reaction và nút Xuất danh sách CSV. Nhấn "Xem hồ sơ cần rà soát" để mở tab `review.html`.
+
+**Trong tab Sàng lọc tương tác**:
+1. Kéo thả/chọn tệp `.csv` vừa xuất từ popup (tối đa 15 MB) hoặc nhấn "Lấy dữ liệu từ tiện ích" để đọc thẳng dữ liệu Chrome.
+2. Hệ thống tự phân tích từng URL ngay từ dữ liệu đã nhập, hiển thị tiến độ **n/n**, tổng tài khoản, **nghi vấn** (đỏ) và **không có dấu hiệu** (xanh), tên tài khoản vừa xử lý, thanh tiến độ và nút dừng.
+3. Danh sách mặc định chỉ hiển thị **nghi vấn**, có tìm URL và mở từng profile bằng link khi muốn kiểm tra thủ công.
+4. Nhấn **Xuất CSV kết quả**: có cột chính xác **Trạng thái**, giá trị **nghi vấn** hoặc **không có dấu hiệu**, cùng lý do và số ảnh đã tương tác; giữ nguyên thứ tự xuất hiện đầu tiên trong dữ liệu.
+5. Nhấn **Xuất Excel đẹp (.xlsx)**: tiêu đề nền xanh chữ trắng, các ô dữ liệu trắng chữ đen, viền, ô trạng thái đỏ/xanh, hyperlink tới profile Facebook, tự giãn độ rộng cột có giới hạn, tự xuống dòng, cố định dòng đầu và bộ lọc. Excel hoặc Google Sheets sẽ giữ định dạng khi mở/import XLSX. **CSV không thể lưu bất kỳ màu sắc/viền/độ rộng cột nào.**
+
+Quy tắc sàng lọc từ **CSV đã nhập**: cùng một hồ sơ xuất hiện với nhiều loại reaction trên một ảnh (có thể do thay đổi cảm xúc hợp lệ); một URL xuất hiện ở phần lớn nhiều ảnh đã quan sát (có thể là vận động bình chọn hợp lệ); hoặc (chỉ khi CSV cung cấp dữ liệu thật) hồ sơ rất ít trường thông tin có sẵn kèm số lượng bạn bè/theo dõi cao. Những dấu hiệu này chỉ xếp vào nhóm **nghi vấn = cần rà soát**, không kết luận bot và không tự trừ điểm. Không dùng nơi cư trú Dĩ An/TP.HCM để tự đánh giá sạch hoặc gian lận. `không có dấu hiệu` = chưa có tín hiệu trong phần CSV được đọc, KHÔNG có nghĩa đã xác minh tài khoản thật.
+
+**Lưu ý giới hạn:** đây là quy trình **quét dữ liệu tài khoản có trong file**, KHÔNG tự điều hướng qua tất cả các trang cá nhân. Extension không thu thập hàng loạt email, số điện thoại, ngày sinh, giới tính, bạn bè hoặc quê quán từ hồ sơ người dùng, không dùng API ẩn, không vượt CAPTCHA. Một tệp chỉ có reaction + profileUrl không thể kiểm tra được tính thật/giả từ trang cá nhân. CSV UNKNOWN vẫn được nhập nhưng không được tính thành reaction hợp lệ. Dữ liệu được đọc hoàn toàn trong Chrome, không upload đến máy chủ.
+
+**Cập nhật extension:** mở `chrome://extensions`, Reload VOIDSCAN, Ctrl+R tab Facebook và tab review. Không cần gỡ/cài lại, dữ liệu đã lưu ở Chrome không bị xóa.
+
+## Thay đổi của phiên bản 0.3.2
 
 ## Sửa lỗi Facebook đã xác nhận ở v0.3.2
 
@@ -70,6 +89,9 @@ Mã nguồn extension ở F:\VOIDSCAN\chrome-extension.
     node chrome-extension/test-review.cjs
     node --check chrome-extension/review-lib.js
     node --check chrome-extension/review.js
+    node --check chrome-extension/file-audit.js
+    node --check chrome-extension/xlsx-export.js
+    node chrome-extension/test-file-audit.cjs
     .\.venv\Scripts\python.exe tests\extension_browser_smoke.py
     .\.venv\Scripts\python.exe tests\review_browser_smoke.py
 

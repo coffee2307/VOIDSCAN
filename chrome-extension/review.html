@@ -1,50 +1,89 @@
 <!doctype html>
-<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>VOIDSCAN — Sàng lọc reaction</title><link rel="stylesheet" href="review.css"></head>
+<html lang="vi"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VOIDSCAN — Trung tâm kiểm toán tương tác</title>
+<link rel="stylesheet" href="review.css">
+</head>
 <body>
 <header>
-  <div><small class="eyebrow">VOIDSCAN / REACTION INTEGRITY</small><h1>Sàng lọc tương tác</h1>
-  <p>Đánh dấu các trường hợp cần rà soát từ dữ liệu đã thu thập. Không tự kết luận bot.</p></div>
-  <div class="topactions"><button id="refresh" type="button">Làm mới</button><button id="csvflag" type="button" class="primary">Xuất CSV nghi vấn</button><button id="csvall" type="button">Xuất toàn bộ CSV</button></div>
+  <div><small class="eyebrow">VOIDSCAN / REACTION INTEGRITY</small><h1>Trung tâm kiểm toán</h1>
+  <p>Nhập CSV → tự sàng lọc hồ sơ → xuất bảng kết quả</p></div>
+  <div class="topactions">
+    <button id="source-local">Lấy dữ liệu từ tiện ích</button>
+    <button id="csvall" type="button">Xuất CSV kết quả</button>
+    <button id="xlsxall" type="button" class="primary">Xuất Excel đẹp (.xlsx)</button>
+  </div>
 </header>
 <main>
-<section class="stats" aria-label="Kết quả tự sàng lọc">
- <div><small>Hồ sơ thu được</small><strong id="total">0</strong></div>
- <div><small>Cần rà soát</small><strong id="flagged">0</strong></div>
- <div><small>Chưa có tín hiệu</small><strong id="nosignal">0</strong></div>
- <div><small>Đã kiểm tra</small><strong id="checked">0</strong></div>
- <div><small>Ảnh có dữ liệu</small><strong id="photos">0</strong></div>
-</section>
-<p id="notice">Không phát hiện tín hiệu từ dữ liệu thu được không có nghĩa tài khoản là người thật hoặc đã được xác minh. Số phản ứng hiển thị trên Facebook có thể lớn hơn số URL thu thập thành công.</p>
-<div class="columns">
- <section class="panel">
-  <h2>Hồ sơ ưu tiên kiểm tra</h2>
-  <div class="filters"><input id="search" type="search" placeholder="Tìm URL hoặc username"><select id="filter"><option value="flagged">Chỉ cần rà soát</option><option value="all">Tất cả</option><option value="checked">Đã kiểm tra</option></select></div>
-  <div class="small" id="listcount">Đang đọc dữ liệu…</div>
-  <div id="queue" class="queue"></div>
- </section>
- <section class="panel detail">
-  <div id="empty"><h2>Không có hồ sơ đang chọn</h2><p>Các hồ sơ xuất hiện ở danh sách bên trái được phân loại tự động. Bạn chỉ cần xem những mục có lý do rà soát.</p></div>
-  <section id="editor" hidden>
-    <div class="detailhead"><div><small class="eyebrow">PROFILE AUDIT</small><h2 id="username">—</h2></div><span id="level" class="pill">Chưa phân loại</span></div>
-    <a id="profile-link" href="#" target="_blank" rel="noopener noreferrer">Mở hồ sơ Facebook ↗</a>
-    <div class="recordstats"><div>Số ảnh đã ghi<b id="nphotos">0</b></div><div>Trường có sẵn<b id="nfields">0</b></div></div>
-    <h3>Lý do sàng lọc</h3><div id="reasons" class="reasons"></div>
-    <p class="small">Trường có sẵn là mức dữ liệu quan sát được trong danh sách reaction; không phải điểm xác thực tài khoản. Duyệt người tham gia cần chứng cứ riêng.</p>
-    <label for="decision">Kết quả của người rà soát</label><select id="decision">
-      <option value="unreviewed">Chưa kiểm tra</option>
-      <option value="provisional_pass">Tạm chấp nhận (chưa xác minh độc lập)</option>
-      <option value="needs_review">Cần xác minh thêm</option>
-      <option value="inconclusive">Không đủ thông tin</option>
-    </select>
-    <label for="notes">Ghi chú ngắn (không nhập thông tin liên hệ cá nhân)</label>
-    <textarea id="notes" rows="3" maxlength="220" placeholder="Chỉ ghi bằng chứng có liên quan đến tương tác"></textarea>
-    <div class="editactions"><button id="save" class="primary">Lưu kết quả</button><button id="next">Hồ sơ tiếp theo →</button></div>
+  <section class="upload" aria-label="Nhập file CSV">
+    <div class="upload-icon">CSV</div>
+    <div class="upload-copy">
+      <h2>Nhập file reaction CSV</h2>
+      <p>Kéo CSV vào đây hoặc chọn file đã xuất từ popup VOIDSCAN. Tự chạy ngay sau khi chọn, không cần dán từng URL.</p>
+      <div class="upload-details" id="source-label">Chưa nhập file · Có thể chọn “Lấy dữ liệu từ tiện ích” để dùng dữ liệu đang lưu trong Chrome.</div>
+    </div>
+    <label for="upload" class="upload-button">Chọn file CSV</label>
+    <input id="upload" type="file" accept=".csv,text/csv,text/plain" aria-label="Chọn file CSV để phân tích">
   </section>
- </section>
-</div>
-<div id="toast" role="status"></div>
-<footer>Dữ liệu chỉ lưu trong Chrome · Không quét hàng loạt các trang cá nhân · Không tự động trừ điểm</footer>
+  <section class="progress-wrap" aria-label="Tiến độ phân tích">
+    <div class="progress-heading">
+      <span id="progress-title">Sẵn sàng quét</span><strong id="progress-number" aria-live="polite">0 / 0 tài khoản</strong>
+    </div>
+    <div class="progress-track" role="progressbar" id="progress-track" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress-bar"></div></div>
+    <div class="progress-foot"><span id="last-scanned">Chưa có tài khoản nào được kiểm tra trong dữ liệu.</span><button id="stop" type="button" disabled>Dừng</button></div>
+  </section>
+  <section class="stats" aria-label="Kết quả sàng lọc">
+    <div><small>Tổng tài khoản</small><strong id="total">0</strong></div>
+    <div class="stat-red"><small>Nghi vấn · cần rà soát</small><strong id="flagged">0</strong></div>
+    <div class="stat-green"><small>Không có dấu hiệu</small><strong id="nosignal">0</strong></div>
+    <div><small>Đã quét</small><strong id="checked">0</strong></div>
+    <div><small>Số ảnh trong file</small><strong id="photos">0</strong></div>
+  </section>
+  <p id="notice" class="notice">
+  Hệ thống phân tích dữ liệu trong CSV, không tự truy cập hàng loạt trang cá nhân.
+  “Không có dấu hiệu” chỉ có nghĩa không thấy tín hiệu bất thường trong dữ liệu đã cung cấp; không phải xác nhận tài khoản thật.
+  </p>
+  <div class="columns">
+    <section class="panel" aria-label="Danh sách kết quả">
+      <div class="section-title"><h2>Danh sách tài khoản</h2><span id="listcount" class="muted">0 tài khoản</span></div>
+      <div class="filters">
+        <input id="search" type="search" placeholder="Tìm URL, username, ID" aria-label="Tìm tài khoản">
+        <select id="filter" aria-label="Lọc danh sách"><option value="flagged">Chỉ nghi vấn</option>
+          <option value="all">Tất cả</option><option value="clear">Không có dấu hiệu</option>
+          <option value="checked">Đã duyệt thủ công</option></select>
+      </div>
+      <div class="queue" id="queue" role="listbox" aria-label="Tài khoản từ file CSV"></div>
+    </section>
+    <section class="panel detail">
+      <div id="empty"><h2>Chọn một tài khoản từ danh sách</h2><p>Dùng bộ lọc “Chỉ nghi vấn” để kiểm tra những URL đã được VOIDSCAN ưu tiên. Các trường hợp còn lại không cần bạn mở thủ công.</p></div>
+      <section id="editor" hidden>
+        <div class="detailhead"><div><small class="eyebrow">PROFILE AUDIT</small><h2 id="username">—</h2></div><span id="level" class="pill">Chưa phân loại</span></div>
+        <div class="linkrow"><a id="profile-link" href="#" target="_blank" rel="noopener noreferrer">Mở hồ sơ Facebook ↗</a><button id="copy" type="button">Sao chép URL</button></div>
+        <div class="recordstats">
+          <div>Ảnh tương tác<b id="nphotos">0</b></div>
+          <div>Phản ứng chưa rõ<b id="nunknown">0</b></div>
+          <div>Trường thông tin có sẵn<b id="nfields">0</b></div>
+        </div>
+        <h3>Lý do đánh giá</h3><div class="reasons" id="reasons"></div>
+        <p class="small">Các chỉ số dùng để quyết định có cần rà soát, không được coi là xác suất bot. Một người bình chọn nhiều ảnh vẫn có thể hoàn toàn hợp lệ.</p>
+        <label for="decision">Đánh giá thủ công (tùy chọn)</label>
+        <select id="decision"><option value="unreviewed">Chưa kiểm tra thủ công</option>
+        <option value="provisional_pass">Tạm chấp nhận</option><option value="needs_review">Cần xem kỹ hơn</option>
+        <option value="inconclusive">Không đủ dữ liệu</option></select>
+        <label for="notes">Ghi chú ngắn (không nhập số điện thoại/email)</label>
+        <textarea id="notes" rows="3" maxlength="220" placeholder="Ghi nhận bằng chứng kiểm toán nếu có"></textarea>
+        <div class="editactions"><button id="save" class="primary">Lưu nhận xét</button><button id="next">Tài khoản tiếp theo →</button></div>
+      </section>
+    </section>
+  </div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <footer>
+    CSV là dữ liệu thuần, không thể lưu màu/viền/độ rộng cột. Hãy dùng “Xuất Excel đẹp (.xlsx)” để giữ định dạng khi mở bằng Microsoft Excel hoặc Google Sheets.
+    Dữ liệu được phân tích trong Chrome, không gửi lên máy chủ.
+  </footer>
 </main>
-<script src="lib.js"></script><script src="review-lib.js"></script><script src="review.js"></script>
+<script src="lib.js"></script>
+<script src="file-audit.js"></script>
+<script src="xlsx-export.js"></script>
+<script src="review.js"></script>
 </body></html>

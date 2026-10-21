@@ -1,130 +1,237 @@
 (() => {
 "use strict";
 const $=id=>document.getElementById(id);
-const REACTIONS="voidscan_reactions_v1",DECISIONS="voidscan_screening_reviews_v1";
-const lib=window.VoidscanAudit,review=window.VoidscanReview;
-let analysis={accounts:[],observedPhotos:0,rawRows:0,validReactions:0};
-let selections=[],active="",reviewMap={};
-const labelStatus={unreviewed:"Chưa kiểm tra",needs_review:"Cần kiểm tra thêm",
-  provisional_pass:"Tạm chấp nhận",inconclusive:"Không đủ dữ liệu"};
-const labelPriority={review_first:"Ưu tiên cao",review:"Cần rà soát",no_signal:"Chưa có tín hiệu"};
-const format=x=>Number(x||0).toLocaleString("vi-VN");
-const toast=text=>{$("toast").textContent=text;};
-const filterValue=()=>String($("filter").value);
-function filtered(){
- const q=$("search").value.trim().toLowerCase(),mode=filterValue();
- return analysis.accounts.filter(x=>{
-   if(mode==="flagged"&&x.priority==="no_signal"&&x.status!=="needs_review")return false;
-   if(mode==="checked"&&x.status==="unreviewed")return false;
-   return !q||(x.profileUrl+" "+x.username+" "+x.userId).toLowerCase().includes(q);
- });
-}
-function textEl(tag,text,className){
+const FILE=window.VoidscanFileAudit,LIB=window.VoidscanAudit, XLSX=window.VoidscanXlsx;
+const STORAGE_REACTIONS="voidscan_reactions_v1",STORAGE_PENDING="voidscan_pending_reactions_v1";
+const STORAGE_DECISIONS="voidscan_screening_reviews_v1",MAX_CSV_BYTES=15*1024*1024;
+let scanToken=0,source=[],profiles=[],results=[],byUrl=new Map(),chosen="",decisionMap={};
+let sourceLabel="Dữ liệu trong Chrome";
+let currentProgress={done:0,total:0,flagged:0,clear:0};
+const fmt=n=>Number(n||0).toLocaleString("vi-VN");
+const msg=text=>{$("toast").textContent=text;};
+const busy=flag=>{
+ $("stop").disabled=!flag;
+ $("source-local").disabled=flag;
+ $("upload").disabled=flag;
+};
+const words={unreviewed:"Chưa duyệt",provisional_pass:"Tạm chấp nhận",
+ needs_review:"Cần xem kỹ hơn",inconclusive:"Không đủ dữ liệu"};
+function safeText(tag,text,className){
  const el=document.createElement(tag);
+ el.textContent=String(text??"");
  if(className)el.className=className;
- el.textContent=String(text);
  return el;
 }
-function refreshQueue(){
- selections=filtered();
- $("listcount").textContent=format(selections.length)+" hồ sơ phù hợp bộ lọc"+
-   (selections.length>250?" · đang hiển thị 250 hồ sơ đầu":"");
- const area=$("queue");area.replaceChildren();
- if(!selections.length){
-   area.append(textEl("p",filterValue()==="flagged"?
-     "Chưa có hồ sơ cần rà soát từ dữ liệu hiện có. Đây không phải xác nhận các tài khoản khác là thật.":
-     "Chưa có dữ liệu phù hợp bộ lọc.","small"));
-   $("editor").hidden=true;$("empty").hidden=false;return;
+function updateCounter(){
+ $("total").textContent=fmt(currentProgress.total);
+ $("flagged").textContent=fmt(currentProgress.flagged);
+ $("nosignal").textContent=fmt(currentProgress.clear);
+ $("checked").textContent=fmt(currentProgress.done);
+ $("progress-number").textContent=fmt(currentProgress.done)+" / "+fmt(currentProgress.total)+" tài khoản";
+ const pc=currentProgress.total?Math.round(currentProgress.done/currentProgress.total*100):0;
+ $("progress-bar").style.width=pc+"%";
+ $("progress-track").setAttribute("aria-valuenow",pc);
+}
+function listFiltered(){
+ const q=$("search").value.trim().toLowerCase(),mode=$("filter").value;
+ return results.filter(p=>{
+  if(mode==="flagged"&&p.status!==FILE.LABEL_SUSPECT)return false;
+  if(mode==="clear"&&p.status!==FILE.LABEL_CLEAR)return false;
+  if(mode==="checked"&&p.reviewerStatus==="unreviewed")return false;
+  return !q||[p.profileUrl,p.username,p.userId].some(v=>String(v||"").toLowerCase().includes(q));
+ });
+}
+function drawQueue(){
+ const filtered=listFiltered(),q=$("queue");q.replaceChildren();
+ $("listcount").textContent=fmt(filtered.length)+" tài khoản"+
+   (filtered.length>250?" · đang hiển thị 250 đầu tiên":"");
+ if(!filtered.length){
+   q.append(safeText("p",currentProgress.done===0?"Chưa có kết quả sàng lọc.":
+     "Không có tài khoản phù hợp bộ lọc. Điều này không xác nhận tính hợp lệ của toàn bộ danh sách.","small"));
+   $("empty").hidden=false;$("editor").hidden=true;
+   return;
  }
- for(const profile of selections.slice(0,250)){
-   const b=document.createElement("button");
-   b.type="button";b.className="queuebutton"+(profile.profileUrl===active?" selected":"");
-   const title=textEl("strong",profile.username||profile.userId||profile.profileUrl);
-   const info=textEl("small",labelPriority[profile.priority]+" · "+
-      format(profile.photoCount)+" ảnh · "+labelStatus[profile.status]);
-   b.append(title,info);b.addEventListener("click",()=>select(profile.profileUrl));
-   area.appendChild(b);
+ for(const p of filtered.slice(0,250)){
+  const item=document.createElement("button");item.type="button";item.className="queuebutton"+
+   (chosen===p.profileUrl?" selected":"");
+  item.append(safeText("strong",p.username||p.userId||p.profileUrl));
+  item.append(safeText("small",(p.status===FILE.LABEL_SUSPECT?"● Nghi vấn":"● Không có dấu hiệu")+
+    " · "+fmt(p.photoCount)+" ảnh · "+words[p.reviewerStatus]));
+  item.addEventListener("click",()=>select(p.profileUrl));
+  q.append(item);
  }
- if(!selections.some(x=>x.profileUrl===active))select(selections[0].profileUrl,false);
+ if(!filtered.some(x=>x.profileUrl===chosen))select(filtered[0].profileUrl,false);
 }
-function select(url,rerender=true){
- const item=analysis.accounts.find(x=>x.profileUrl===url);
- if(!item)return;
- active=url;$("editor").hidden=false;$("empty").hidden=true;
- $("username").textContent=item.username||item.userId||"Tài khoản";
- $("profile-link").href=item.profileUrl;
- $("profile-link").textContent=item.profileUrl+" ↗";
- $("level").textContent=labelPriority[item.priority]||"Không rõ";
- $("nphotos").textContent=format(item.photoCount);
- $("nfields").textContent=format(item.metadataFields)+"/4";
- $("reasons").replaceChildren(...item.reasons.map(x=>textEl("p",x)));
- $("decision").value=item.status;$("notes").value=item.notes||"";
- if(rerender)refreshQueue();
+function select(url,redraw=true){
+ const p=byUrl.get(url);if(!p)return;
+ chosen=url;$("empty").hidden=true;$("editor").hidden=false;
+ $("username").textContent=p.username||p.userId||"Tài khoản";
+ $("profile-link").href=p.profileUrl;
+ $("profile-link").textContent=p.profileUrl+" ↗";
+ $("level").textContent=p.status;
+ $("level").className="pill "+(p.status===FILE.LABEL_SUSPECT?"suspect":"clear");
+ $("nphotos").textContent=fmt(p.photoCount);
+ $("nunknown").textContent=fmt(p.unknownRows);
+ $("nfields").textContent=fmt(p.availableInfoPoints)+"/6";
+ $("reasons").replaceChildren(safeText("p",p.evidence));
+ $("decision").value=p.reviewerStatus;
+ $("notes").value=p.reviewNotes||"";
+ if(redraw)drawQueue();
 }
-function refreshMetrics(){
- const s=review.summary(analysis);
- $("total").textContent=format(s.total);
- $("flagged").textContent=format(s.reviewFirst+s.review);
- $("nosignal").textContent=format(s.noSignal);
- $("checked").textContent=format(s.checked);
- $("photos").textContent=format(analysis.observedPhotos);
- const flagged=s.reviewFirst+s.review;
- const flaggedChecked=analysis.accounts.filter(
-   x=>(x.priority!=="no_signal"||x.status==="needs_review")&&x.status!=="unreviewed").length;
- const pct=flagged?Math.min(100,flaggedChecked/flagged*100):0;
- $("notice").textContent="Đã đọc "+format(analysis.validReactions)+
-   " reaction hợp lệ từ "+format(analysis.observedPhotos)+" ảnh. "+
-   format(flagged)+" hồ sơ được ưu tiên kiểm tra; "+format(s.noSignal)+
-   " chưa có tín hiệu bất thường từ các trường đang có. Không tự xác nhận bot, không loại phiếu.";
- $("notice").setAttribute("data-observation","incomplete");
- document.documentElement.style.setProperty("--review-progress",pct+"%");
+function setLast(p){
+ const short=p.username||p.userId||p.profileUrl.split("/").filter(Boolean).at(-1)||"Hồ sơ";
+ $("last-scanned").textContent="Vừa quét: "+short+" — "+p.status;
+ $("last-scanned").style.color=p.status===FILE.LABEL_SUSPECT?"#ffb1bd":"#9cedbd";
 }
-async function load(){
- const data=await chrome.storage.local.get([REACTIONS,DECISIONS]);
- const raw=Array.isArray(data[REACTIONS])?data[REACTIONS]:[];
- reviewMap=data[DECISIONS]&&typeof data[DECISIONS]==="object"?data[DECISIONS]:{};
- analysis=review.analyse(raw,reviewMap);
- refreshMetrics();refreshQueue();
- toast("Tự sàng lọc "+format(analysis.accounts.length)+" hồ sơ · Không tự truy cập profile.");
+async function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+async function scan(data,origin){
+ const ticket=++scanToken;
+ source=data;
+ results=[];profiles=[];byUrl=new Map();chosen="";
+ sourceLabel=origin;
+ busy(true);
+ $("progress-title").textContent="Đang chuẩn hóa CSV...";
+ $("source-label").textContent=origin;
+ $("last-scanned").textContent="Đang đọc dữ liệu...";
+ try{
+  const prepared=FILE.prepare(data);
+  profiles=prepared.profiles;
+  currentProgress={total:profiles.length,done:0,flagged:0,clear:0};
+  $("photos").textContent=fmt(prepared.photoTotal);
+  updateCounter();
+  $("notice").textContent="Đọc "+fmt(prepared.rows.length)+" dòng hợp lệ từ file. "+
+   (prepared.warnings.invalidProfile?
+    fmt(prepared.warnings.invalidProfile)+" dòng thiếu URL hồ sơ đã được bỏ qua. ":"")+
+   (prepared.warnings.unknownReaction?
+    fmt(prepared.warnings.unknownReaction)+" reaction chưa xác định loại. ":"")+
+   "Chỉ phân tích thông tin có trong CSV, không mở trang Facebook của người tham gia.";
+  $("progress-title").textContent="Đang sàng lọc tài khoản...";
+  const decisions=await chrome.storage.local.get(STORAGE_DECISIONS);
+  decisionMap=decisions[STORAGE_DECISIONS]&&typeof decisions[STORAGE_DECISIONS]==="object"?
+    decisions[STORAGE_DECISIONS]:{};
+  for(let i=0;i<profiles.length;i++){
+   if(ticket!==scanToken){$("progress-title").textContent="Đã dừng.";return;}
+   const row=FILE.scoreProfile(profiles[i],prepared.photoTotal,decisionMap);
+   results.push(row);byUrl.set(row.profileUrl,row);
+   currentProgress.done++;
+   if(row.status===FILE.LABEL_SUSPECT)currentProgress.flagged++;
+   else currentProgress.clear++;
+   updateCounter();
+   setLast(row);
+   // Yield regularly so Chrome paints counters and n/n progress mid-scan.
+   if(i%8===7)await sleep(8);
+  }
+  if(ticket!==scanToken)return;
+  $("progress-title").textContent="Hoàn tất sàng lọc";
+  drawQueue();
+  msg("Hoàn thành "+fmt(currentProgress.done)+" tài khoản. "+
+   fmt(currentProgress.flagged)+" cần rà soát; "+fmt(currentProgress.clear)+
+   " chưa thấy tín hiệu trong CSV.");
+ }catch(e){
+   $("progress-title").textContent="Lỗi phân tích";
+   msg("Không thể phân tích: "+(e.message||"lỗi không xác định"));
+ }finally{if(ticket===scanToken)busy(false);}
 }
-async function save(){
- if(!active)return;
- const status=$("decision").value,notes=$("notes").value.trim().slice(0,220);
- if(!review.STATUSES.includes(status))return;
- reviewMap[active]={status,notes,reviewedAt:new Date().toISOString()};
- await chrome.storage.local.set({[DECISIONS]:reviewMap});
- const updated=review.analyse((await chrome.storage.local.get(REACTIONS))[REACTIONS]||[],reviewMap);
- analysis=updated;refreshMetrics();refreshQueue();
- toast("Đã lưu kết quả. Chỉ ghi quyết định và ghi chú của người kiểm tra.");
+async function loadFromChrome(){
+ const saved=await chrome.storage.local.get([STORAGE_REACTIONS,STORAGE_PENDING]);
+ const classified=Array.isArray(saved[STORAGE_REACTIONS])?saved[STORAGE_REACTIONS]:[];
+ const pending=Array.isArray(saved[STORAGE_PENDING])?saved[STORAGE_PENDING]:[];
+ const known=new Set(classified.map(r=>r.photoId+"|"+r.profileUrl));
+ const merged=[...classified,...pending.filter(r=>!known.has(r.photoId+"|"+r.profileUrl))];
+ await scan(merged,"Dữ liệu trong Chrome · "+fmt(merged.length)+" dòng reaction");
 }
-function next(){
- const shown=filtered();
- const i=shown.findIndex(p=>p.profileUrl===active);
- if(i>=0&&i<shown.length-1)select(shown[i+1].profileUrl);
- else toast("Đã tới cuối danh sách theo bộ lọc.");
+async function loadFile(file){
+ if(!file)return;
+ if(file.size>MAX_CSV_BYTES)throw Error("File vượt 15 MB; hãy chia nhỏ để quét.");
+ if(!/\.csv$/i.test(file.name)&&file.type!=="text/csv"&&file.type!=="text/plain")
+   throw Error("Chỉ hỗ trợ file .csv. Xuất CSV từ popup VOIDSCAN trước.");
+ const fileText=await file.text();
+ const parsed=FILE.parseCSV(fileText);
+ await scan(parsed.rows,file.name+" · "+fmt(parsed.rows.length)+" dòng · lưu cục bộ");
 }
-function downloadRows(flaggedOnly){
- const rows=review.csvRows(analysis,flaggedOnly);
- if(!rows.length){toast("Không có hồ sơ trong danh sách xuất.");return;}
- const csv=lib.csv(rows,review.CSV_COLUMNS);
- const file=new Blob([csv],{type:"text/csv;charset=utf-8"});
- const href=URL.createObjectURL(file);
- const a=document.createElement("a");
- a.href=href;a.download="VOIDSCAN_screening_"+(flaggedOnly?"review_":"all_")+
-   new Date().toISOString().replace(/[:.]/g,"-").slice(0,19)+".csv";
+function allRows(flaggedOnly){
+ return results.filter(p=>!flaggedOnly||p.status===FILE.LABEL_SUSPECT);
+}
+function exportFile(filetype,flaggedOnly=false){
+ const rows=allRows(flaggedOnly);
+ if(!rows.length){msg("Chưa có kết quả để xuất.");return;}
+ const cols=FILE.COLUMNS;
+ const date=new Date().toISOString().replace(/[:.]/g,"-").slice(0,19);
+ const name="VOIDSCAN_KIEM_TOAN_"+(flaggedOnly?"NGHI_VAN_":"TAT_CA_")+date;
+ let bytes,filename,type;
+ if(filetype==="xlsx"){
+  bytes=XLSX.workbook(rows,cols);
+  filename=name+".xlsx";
+  type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+ }else{
+  const data=rows.map(r=>Object.fromEntries(cols.map(c=>[c.label,r[c.key]??""])));
+  bytes=LIB.csv(data,cols.map(c=>c.label));
+  filename=name+".csv";type="text/csv;charset=utf-8";
+ }
+ const blob=new Blob([bytes],{type}),url=URL.createObjectURL(blob);
+ const a=document.createElement("a");a.href=url;a.download=filename;
  document.body.appendChild(a);a.click();a.remove();
- setTimeout(()=>URL.revokeObjectURL(href),30000);
- toast("Đã xuất "+format(rows.length)+" hồ sơ. Nhãn bot tự động luôn là NOT_DETERMINED.");
+ setTimeout(()=>URL.revokeObjectURL(url),30000);
+ msg("Đã tạo "+filename+" ("+fmt(rows.length)+" tài khoản). "+
+   (filetype==="csv"?"CSV không lưu định dạng màu/viền.":"Excel có tiêu đề xanh, viền, lọc và màu trạng thái."));
 }
-$("refresh").addEventListener("click",()=>load().catch(()=>toast("Không thể tải bộ nhớ Chrome.")));
-$("search").addEventListener("input",refreshQueue);
-$("filter").addEventListener("change",refreshQueue);
-$("save").addEventListener("click",()=>save().catch(()=>toast("Lỗi lưu đánh giá.")));
-$("next").addEventListener("click",next);
-$("csvflag").addEventListener("click",()=>downloadRows(true));
-$("csvall").addEventListener("click",()=>downloadRows(false));
-chrome.storage.onChanged.addListener((changes,area)=>{
- if(area==="local"&&changes[REACTIONS])load().catch(()=>{});
+async function saveReview(){
+ if(!chosen)return;
+ const status=$("decision").value,notes=$("notes").value.trim().slice(0,220);
+ if(!["unreviewed","provisional_pass","needs_review","inconclusive"].includes(status))return;
+ decisionMap[chosen]={status,notes,reviewedAt:new Date().toISOString()};
+ await chrome.storage.local.set({[STORAGE_DECISIONS]:decisionMap});
+ const p=byUrl.get(chosen);
+ p.reviewerStatus=status;p.reviewNotes=notes;
+ if(status==="needs_review"&&p.status!==FILE.LABEL_SUSPECT){
+   // Human disagreement triggers manual-review label, with explanation.
+   p.status=FILE.LABEL_SUSPECT;
+   p.evidence+=" | Được người duyệt đánh dấu cần xem kỹ hơn";
+   currentProgress.flagged++;currentProgress.clear--;
+   updateCounter();
+ }
+ drawQueue();msg("Đã lưu đánh giá của người kiểm tra. Không tự loại phiếu.");
+}
+function nextProfile(){
+ const queue=listFiltered();
+ const ix=queue.findIndex(x=>x.profileUrl===chosen);
+ if(ix>=0&&ix<queue.length-1)select(queue[ix+1].profileUrl);
+ else msg("Đã đến cuối danh sách trong bộ lọc hiện tại.");
+}
+$("source-local").addEventListener("click",()=>loadFromChrome().catch(e=>msg("Lỗi đọc dữ liệu Chrome: "+e.message)));
+$("upload").addEventListener("change",e=>{
+ const file=e.target.files?.[0];
+ if(file)loadFile(file).catch(e=>msg("Không nhập được CSV: "+e.message));
+ e.target.value="";
 });
-load().catch(()=>toast("Chưa có dữ liệu từ extension hoặc không đọc được bộ nhớ."));
+const drop=$("upload").closest(".upload");
+for(const event of ["dragenter","dragover"]){
+ drop.addEventListener(event,e=>{e.preventDefault();drop.classList.add("dragover");});
+}
+for(const event of ["dragleave","drop"]){
+ drop.addEventListener(event,e=>{e.preventDefault();drop.classList.remove("dragover");});
+}
+drop.addEventListener("drop",e=>{
+ const file=e.dataTransfer?.files?.[0];
+ if(file)loadFile(file).catch(error=>msg("Lỗi nhập CSV: "+error.message));
+});
+$("stop").addEventListener("click",()=>{
+ scanToken++;busy(false);$("progress-title").textContent="Đã dừng theo yêu cầu";
+ drawQueue();msg("Đã dừng. Kết quả phân tích được giữ đến thời điểm dừng.");
+});
+$("search").addEventListener("input",drawQueue);
+$("filter").addEventListener("change",drawQueue);
+$("csvall").addEventListener("click",()=>exportFile("csv"));
+$("xlsxall").addEventListener("click",()=>exportFile("xlsx"));
+$("save").addEventListener("click",()=>saveReview().catch(e=>msg(e.message)));
+$("next").addEventListener("click",nextProfile);
+$("copy").addEventListener("click",()=>{
+ const p=byUrl.get(chosen);
+ if(!p)return;
+ navigator.clipboard?.writeText(p.profileUrl).then(()=>msg("Đã sao chép URL hồ sơ.")).
+  catch(()=>msg("Không thể sao chép; hãy dùng liên kết hồ sơ bên trên."));
+});
+// No external fetch(), profile visits, tracking or upload. Optional initial scan
+// uses only local extension records. User-imported file remains memory-only.
+loadFromChrome().catch(e=>msg("Chưa có dữ liệu local. Chọn CSV từ popup: "+e.message));
 })();
