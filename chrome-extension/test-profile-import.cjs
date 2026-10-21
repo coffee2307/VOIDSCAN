@@ -52,4 +52,15 @@ assert.equal(embeddedScore.avatarEvidence,"absent_observed");
 assert.equal(embeddedScore.regionContext,"local");
 assert.equal(embeddedScore.profileDataSource,"reaction_csv_fields");
 assert.equal(embeddedScore.status,"không có dấu hiệu");
+const temporal=importProfile.enrich([
+ {photoId:photo,profileUrl:url(5),reaction:"LIKE",friendsCount:"3500"}
+],[{
+ profileUrl:url(5),mutualFriendsNumber:"3",
+ latestVisiblePostAt:"2024-01-01",visiblePostDateCount:"4",source:"observed_open_profile"
+}]);
+const temporalScore=audit.scoreProfile(audit.prepare(temporal.rows).profiles[0],1,{});
+assert.equal(temporalScore.mutualFriendsNumber,3);
+assert.equal(temporalScore.latestVisiblePostAt,"2024-01-01");
+assert.equal(temporalScore.status,"nghi vấn");
+assert(temporalScore.evidence.includes("mốc ngày cũ"));
 console.log("VOIDSCAN profile evidence join, region tri-state, no false absence: PASS");

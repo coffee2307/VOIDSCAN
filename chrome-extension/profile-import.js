@@ -23,6 +23,9 @@ function normalizeRow(raw){
   hometown:first("hometown"),hasHometown:first("hasHometown"),
   category:first("category"),hasCategory:first("hasCategory"),
   friendsCount:first("friendsCount"),followingCount:first("followingCount"),
+  mutualFriendsNumber:first("mutualFriendsNumber","mutualFriends"),
+  latestVisiblePostAt:first("latestVisiblePostAt"),
+  visiblePostDateCount:first("visiblePostDateCount"),
   source:first("source","profileDataSource")
  };
 }
@@ -53,7 +56,11 @@ function observe(c){
   hasEducation:flag(c.hasEducation,Boolean(c.education)),
   hasHometown:flag(c.hasHometown,Boolean(c.hometown)),
   hasCategory:flag(c.hasCategory,Boolean(c.category)),
-  friendsCount:c.friendsCount||"",followingCount:c.followingCount||""
+  friendsCount:c.friendsCount||"",followingCount:c.followingCount||"",
+  mutualFriendsNumber:c.mutualFriendsNumber||"",
+  latestVisiblePostAt:/^20\d{2}-\d{2}-\d{2}$/.test(c.latestVisiblePostAt||"")?
+    c.latestVisiblePostAt:"",
+  visiblePostDateCount:c.visiblePostDateCount||""
  };
  return result;
 }

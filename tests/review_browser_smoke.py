@@ -76,7 +76,7 @@ class ImportedCsvBrowser(unittest.TestCase):
     self.assertEqual(page.locator("#checked").inner_text(),"13")
     self.assertEqual(page.locator("#photos").inner_text(),"10")
     self.assertEqual(page.locator("#progress-number").inner_text(),"13 / 13 tài khoản")
-    self.assertEqual(page.locator(".queuebutton").count(),2) # 1 anomaly and 1 UNKNOWN for data-quality recheck
+    self.assertEqual(page.locator(".queuebutton").count(),13) # All profiles visible for review from the start
     self.assertIn("Nghi vấn",page.locator(".queuebutton").first.inner_text())
     self.assertEqual(page.locator("#progress-track").get_attribute("aria-valuenow"),"100")
     with page.expect_download(timeout=15000) as get_integrity:
@@ -149,6 +149,41 @@ class ImportedCsvBrowser(unittest.TestCase):
     page.locator("#filter").select_option("all")
     self.assertEqual(page.locator("#nphotos").inner_text(),"2")
    finally:browser.close()
+
+ def test_open_capture_next_profile_controls(self):
+  with sync_playwright() as pw:
+   browser=pw.chromium.launch(channel="chrome",headless=True)
+   try:
+    page=browser.new_page()
+    page.set_content((EXT/"review.html").read_text(encoding="utf-8"))
+    page.evaluate(MOCK)
+    page.evaluate("""() => {
+      window.__opened=[];
+      window.chrome.tabs={
+        create:async o=>{window.__opened.push(o.url);return {id:77,url:o.url};},
+        update:async (id,o)=>{window.__opened.push(o.url);return {id,url:o.url};},
+        get:async id=>({id,url:window.__opened.at(-1)})
+      };
+      window.chrome.permissions={request:async()=>true};
+      window.chrome.scripting={executeScript:async opts=>
+        opts.func?[{result:{saved:false,reason:"Trang giả lập chưa có dữ liệu."}}]:[]};
+    }""")
+    for name in ("lib.js","file-audit.js","profile-import.js","reaction-integrity.js","xlsx-export.js","review.js"):
+     page.add_script_tag(path=str(EXT/name))
+    page.locator("#upload").set_input_files({
+     "name":"test.csv","mimeType":"text/csv","buffer":fixture()
+    })
+    page.wait_for_function('document.getElementById("total").textContent==="13"',timeout=16000)
+    page.locator("#filter").select_option("all")
+    page.locator("#open-review-tab").click()
+    self.assertEqual(page.evaluate("window.__opened.length"),1)
+    page.locator("#capture-review-tab").click()
+    self.assertIn("Trang giả lập",page.locator("#manual-review-state").inner_text())
+    page.locator("#open-next-tab").click()
+    self.assertEqual(page.evaluate("window.__opened.length"),2)
+    self.assertNotEqual(page.evaluate("window.__opened[0]"),page.evaluate("window.__opened[1]"))
+   finally:
+    browser.close()
 
 if __name__=="__main__":
  unittest.main()

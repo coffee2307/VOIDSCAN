@@ -1,4 +1,14 @@
-# VOIDSCAN Reaction Audit — Chrome Extension 0.5.1
+# VOIDSCAN Reaction Audit — Chrome Extension 0.5.2
+
+## 0.5.2 — Rà soát lần lượt trong tab Chrome
+
+- Sau khi nhập CSV reaction: chọn một URL trong bảng kiểm toán → Mở trong tab Chrome → tự xem trang → quay lại VOIDSCAN nhấn Ghi nhận trang đã mở → Hồ sơ tiếp theo. Sử dụng lại một tab để không tạo hàng trăm tab, cho phép dừng tùy ý.
+- Chỉ ghi nhận dữ liệu thực sự hiển thị trên trang: avatar, địa điểm tự khai, số bạn chung và ngày bài đăng khi các phần tử bài viết công khai chứa timestamp. Khi không thấy dữ liệu thì để trống; không quét lịch sử bài viết ẩn.
+- Số lượng bạn chung và ngày bài đăng gần nhất đã quan sát được đưa vào bảng kiểm toán CSV/Excel. Chỉ khi có nhiều tín hiệu kết hợp (vd. nhiều bạn bè, nhiều mốc bài đăng nhìn thấy đều cũ), mới chuyển nhóm cần rà soát; không xác nhận bot.
+- Không tự động thu thập hàng loạt nội dung hồ sơ, ngày sinh, giới tính, địa chỉ liên hệ, email hoặc số điện thoại; đặc biệt vì đối tượng có thể là học sinh.
+- Thao tác đọc trang yêu cầu quyền Facebook và một lần nhấn ghi nhận từ người dùng; không vượt chặn đăng nhập hay bảo mật.
+
+
 
 ## 0.5.1 — Tương thích CSV của FBFriends 1.3.1
 

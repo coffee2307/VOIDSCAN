@@ -109,6 +109,7 @@ function prepare(raw){
        avatarEvidence:"unknown",regionContext:"unknown",profileDataSource:"",
        photoIds:new Set(),reactions:new Set(),perPhoto:new Map(),
        fields:new Set(),profileFlagsObserved:new Set(),friendsCount:null,followingCount:null,
+       mutualFriendsNumber:null,latestVisiblePostAt:"",visiblePostDateCount:null,
        rawRows:0,unknownRows:0,sourceRows:[]};
      profiles.set(r.profileUrl,item);
    }
@@ -139,6 +140,12 @@ function prepare(raw){
    }
    if(r.friendsCount!==null)item.friendsCount=r.friendsCount;
    if(r.followingCount!==null)item.followingCount=r.followingCount;
+   const mutual=numberOrNull(r.mutualFriendsNumber);
+   if(mutual!==null)item.mutualFriendsNumber=mutual;
+   if(/^20\d{2}-\d{2}-\d{2}$/.test(String(r.latestVisiblePostAt||"")))
+     item.latestVisiblePostAt=r.latestVisiblePostAt;
+   const postDates=numberOrNull(r.visiblePostDateCount);
+   if(postDates!==null)item.visiblePostDateCount=postDates;
  }
  // Same visible name among distinct profile URLs on the SAME photo is a weak
  // review signal, not an identity match and not evidence that either is fake.
@@ -163,6 +170,12 @@ function prepare(raw){
 }
 function scoreProfile(p,photoTotal,decision){
  const photoCount=p.photoIds.size, reasons=[];
+ const today=new Date();
+ const last=Date.parse(p.latestVisiblePostAt||"");
+ const oldPost=Number.isFinite(last)&&last<=today.getTime()-365*24*60*60*1000;
+ if(oldPost&&p.visiblePostDateCount!==null&&p.visiblePostDateCount>=2&&
+    p.friendsCount!==null&&p.friendsCount>=2000)
+   reasons.push("Nhiều bạn bè và các bài đăng nhìn thấy có mốc ngày cũ; đây chỉ là dấu hiệu cần đối chiếu, không chứng minh ngừng hoạt động");
  const quality=[];
  if(p.unknownRows>0)quality.push(p.unknownRows+" reaction UNKNOWN (lỗi nhãn của lần thu thập)");
  if(p.nameCollisionPhotos?.size>0)quality.push("Có trùng tên hiển thị, KHÔNG phải tín hiệu bot");
@@ -184,7 +197,8 @@ function scoreProfile(p,photoTotal,decision){
  const suspected=reasons.length>0;
  const metadataObserved=p.avatarEvidence!=="unknown"||
    p.regionContext!=="unknown"||p.profileFlagsObserved.size>0||
-   p.friendsCount!==null||p.followingCount!==null;
+   p.friendsCount!==null||p.followingCount!==null||
+   p.mutualFriendsNumber!==null||Boolean(p.latestVisiblePostAt);
  const behavioralObserved=photoTotal>=4||conflicts.length>0;
  const sufficient=metadataObserved||behavioralObserved;
  const classification=suspected?LABEL_SUSPECT:
@@ -194,6 +208,9 @@ function scoreProfile(p,photoTotal,decision){
    needsReactionCheck:p.unknownRows>0,
 
    avatarEvidence:p.avatarEvidence||"unknown",regionContext:p.regionContext||"unknown",
+   mutualFriendsNumber:p.mutualFriendsNumber??"",
+   latestVisiblePostAt:p.latestVisiblePostAt||"",
+   visiblePostDateCount:p.visiblePostDateCount??"",
    profileDataSource:p.profileDataSource||"not_collected",dataQuality:quality.join(" | "),
    localRuleApplied:localMatch&&!suspected?"Ưu tiên theo địa điểm tự khai; không xác minh danh tính":"",
    nameCollisionPhotoCount:p.nameCollisionPhotos?.size||0,
@@ -221,6 +238,9 @@ const COLUMNS=[
  {key:"avatarEvidence",label:"Avatar: present/absent_observed/unknown"},
  {key:"regionContext",label:"Địa phương: local/other/unknown"},
  {key:"profileDataSource",label:"Nguồn dữ liệu hồ sơ"},
+ {key:"mutualFriendsNumber",label:"Số bạn chung quan sát được"},
+ {key:"latestVisiblePostAt",label:"Mốc bài đăng công khai mới nhất đã thấy"},
+ {key:"visiblePostDateCount",label:"Số mốc bài đăng đã quan sát"},
  {key:"localRuleApplied",label:"Quy tắc địa phương"},
  {key:"dataQuality",label:"Vấn đề dữ liệu (không phải bot)"},
  {key:"needsReactionCheck",label:"Cần kiểm tra loại reaction"},

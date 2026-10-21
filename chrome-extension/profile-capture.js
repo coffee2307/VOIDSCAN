@@ -27,18 +27,33 @@ root.VoidscanCaptureCurrentProfile=async function(){
      locationText=candidate;break;
    }
  }
- if(!avatar&&!locationText)return {saved:false,reason:"Trang đang mở chưa hiển thị avatar hoặc nơi ở rõ ràng; không tự suy đoán."};
+ // Read only summary counts and timestamps visibly attached to public post cards.
+ const mutual=visibleText.match(/(?:^|\n)\s*(\d{1,5})\s*(?:bạn chung|mutual friends?)\b/i);
+ const mutualCount=mutual?Number(mutual[1]):null;
+ const dates=[...document.querySelectorAll('article time[datetime], [role="article"] time[datetime]')]
+   .slice(0,25).map(node=>node.getAttribute("datetime")||"")
+   .map(v=>{const ts=Date.parse(v);return Number.isFinite(ts)?new Date(ts).toISOString().slice(0,10):"";})
+   .filter(Boolean).sort().reverse();
+ const latestVisiblePostAt=dates[0]||"";
+ if(!avatar&&!locationText&&mutualCount===null&&!latestVisiblePostAt)
+   return {saved:false,reason:"Trang hiện chưa hiển thị tín hiệu cần thiết; không suy đoán trường thiếu."};
  const key="voidscan_profile_observations_v1";
  const old=(await chrome.storage.local.get(key))[key]||{};
  const previous=old[meta.profileUrl]||{};
  const record={...previous,profileUrl:meta.profileUrl,source:"observed_open_profile",observedAt:new Date().toISOString()};
  if(avatar)record.hasAvatar="1";
  if(locationText)record.currentCity=locationText;
+ if(mutualCount!==null)record.mutualFriendsNumber=String(mutualCount);
+ if(latestVisiblePostAt){
+   record.latestVisiblePostAt=latestVisiblePostAt;
+   record.visiblePostDateCount=String(dates.length);
+ }
  const records=Object.keys(old).length;
  if(records>=2000&&!old[meta.profileUrl])
   return {saved:false,reason:"Đã đạt giới hạn 2.000 hồ sơ được ghi nhận cục bộ."};
  old[meta.profileUrl]=record;
  await chrome.storage.local.set({[key]:old});
- return {saved:true,hasAvatar:!!avatar,hasCurrentCity:!!locationText};
+ return {saved:true,hasAvatar:!!avatar,hasCurrentCity:!!locationText,
+   hasMutualCount:mutualCount!==null,hasVisiblePostDate:!!latestVisiblePostAt};
 };
 })(typeof globalThis!=="undefined"?globalThis:this);

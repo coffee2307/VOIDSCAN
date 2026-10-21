@@ -80,7 +80,7 @@
           <option value="flagged">Nghi vấn hồ sơ</option>
           <option value="quality">Lỗi dữ liệu reaction</option>
           <option value="insufficient">Chưa đủ dữ liệu</option>
-          <option value="all">Tất cả</option>
+          <option value="all" selected>Tất cả</option>
           <option value="clear">Chưa thấy dấu hiệu</option>
           <option value="checked">Đã duyệt thủ công</option></select>
       </div>
@@ -91,6 +91,12 @@
       <section id="editor" hidden>
         <div class="detailhead"><div><small class="eyebrow">PROFILE AUDIT</small><h2 id="username">—</h2></div><span id="level" class="pill">Chưa phân loại</span></div>
         <div class="linkrow"><a id="profile-link" href="#" target="_blank" rel="noopener noreferrer">Mở hồ sơ Facebook ↗</a><button id="copy" type="button">Sao chép URL</button></div>
+        <div class="editactions">
+          <button id="open-review-tab" type="button">Mở trong tab Chrome</button>
+          <button id="capture-review-tab" type="button">Ghi nhận trang đã mở</button>
+          <button id="open-next-tab" type="button">Hồ sơ tiếp theo ↗</button>
+        </div>
+        <p class="small" id="manual-review-state">Chọn hồ sơ → Mở tab → xem nội dung Facebook → quay lại và ghi nhận. Không chạy tự động hàng loạt.</p>
         <div class="recordstats">
           <div>Ảnh tương tác<b id="nphotos">0</b></div>
           <div>Phản ứng chưa rõ<b id="nunknown">0</b></div>
@@ -98,6 +104,8 @@
           <div>Avatar từ nguồn<b id="avatar-state" style="font-size:14px">Chưa thu thập</b></div>
           <div>Địa điểm tự khai<b id="location-state" style="font-size:14px">Chưa thu thập</b></div>
           <div>Nguồn hồ sơ<b id="profile-evidence-source" style="font-size:12px">Chưa có</b></div>
+          <div>Số bạn chung quan sát<b id="mutual-observed" style="font-size:14px">Chưa thấy</b></div>
+          <div>Bài đăng công khai có mốc ngày<b id="postdate-observed" style="font-size:14px">Chưa thấy</b></div>
         </div>
         <h3>Lý do đánh giá</h3><div class="reasons" id="reasons"></div>
         <p class="small">Các chỉ số dùng để quyết định có cần rà soát, không được coi là xác suất bot. Một người bình chọn nhiều ảnh vẫn có thể hoàn toàn hợp lệ.</p>

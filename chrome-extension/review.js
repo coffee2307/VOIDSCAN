@@ -7,6 +7,8 @@ const STORAGE_DECISIONS="voidscan_screening_reviews_v1",STORAGE_COUNTS="voidscan
 let scanToken=0,source=[],allSource=[],sourceOrigin="",profiles=[],results=[],byUrl=new Map(),chosen="",decisionMap={};
 let sourceLabel="Dữ liệu trong Chrome",integrityReport=null,profileSource=[];
 let metadataBusy=false,metadataStop=false;const ATTEMPT_STORE="voidscan_public_metadata_attempts_v1";
+let reviewTabId=null,reviewTabTarget="";
+const stateText=t=>{$("manual-review-state").textContent=t;};
 let currentProgress={done:0,total:0,flagged:0,clear:0,insufficient:0,quality:0};
 const fmt=n=>Number(n||0).toLocaleString("vi-VN");
 const msg=text=>{$("toast").textContent=text;};
@@ -87,7 +89,10 @@ function select(url,redraw=true){
    p.avatarEvidence==="absent_observed"?"Đã kiểm tra: không thấy":"Chưa thu thập";
  $("location-state").textContent=p.regionContext==="local"?"Khớp khu vực ưu tiên":
    p.regionContext==="other"?"Địa điểm ngoài khu vực":"Chưa thu thập";
- $("profile-evidence-source").textContent=p.profileDataSource==="uploaded_profile_csv"?"CSV hồ sơ nhập":"Không có";
+ $("profile-evidence-source").textContent=p.profileDataSource==="uploaded_profile_csv"?"CSV hồ sơ nhập":
+   p.profileDataSource==="observed_open_profile"?"Trang Facebook đang mở":p.profileDataSource==="public_metadata"?"Metadata công khai":"Không có";
+ $("mutual-observed").textContent=p.mutualFriendsNumber===""?"Chưa thấy":fmt(p.mutualFriendsNumber);
+ $("postdate-observed").textContent=p.latestVisiblePostAt||"Chưa thấy";
  $("reasons").replaceChildren(safeText("p",p.evidence));
  if(p.dataQuality)$("reasons").append(safeText("p","Chất lượng dữ liệu (không phải bằng chứng bot): "+p.dataQuality,"small"));
  $("decision").value=p.reviewerStatus;
@@ -371,6 +376,41 @@ async function saveReview(){
  }
  drawQueue();msg("Đã lưu đánh giá của người kiểm tra. Không tự loại phiếu.");
 }
+async function openManualProfile(url){
+ const candidate=LIB.profileMeta(url);
+ if(!candidate)throw Error("URL hồ sơ Facebook không hợp lệ.");
+ let tab=null;
+ if(reviewTabId!==null){
+   try{tab=await chrome.tabs.update(reviewTabId,{url:candidate.profileUrl,active:true});}
+   catch{reviewTabId=null;}
+ }
+ if(!tab)tab=await chrome.tabs.create({url:candidate.profileUrl,active:true});
+ reviewTabId=tab.id;reviewTabTarget=candidate.profileUrl;
+ stateText("Đã mở hồ sơ trong tab Chrome. Xem trang, sau đó quay về VOIDSCAN bấm Ghi nhận trang đã mở.");
+}
+async function captureManualProfile(){
+ if(reviewTabId===null||!reviewTabTarget){stateText("Hãy bấm Mở trong tab Chrome trước.");return;}
+ const granted=await chrome.permissions.request({origins:["https://www.facebook.com/*"]});
+ if(!granted){stateText("Chưa cấp quyền đọc trang Facebook đang mở.");return;}
+ try{
+  const info=await chrome.tabs.get(reviewTabId);
+  if(LIB.normalizeProfile(info.url||"")!==LIB.normalizeProfile(reviewTabTarget)){
+    stateText("Tab đã chuyển URL; hãy mở lại đúng hồ sơ từ VOIDSCAN.");return;
+  }
+  await chrome.scripting.executeScript({target:{tabId:reviewTabId},files:["lib.js","profile-capture.js"]});
+  const rv=await chrome.scripting.executeScript({
+    target:{tabId:reviewTabId},func:()=>window.VoidscanCaptureCurrentProfile()
+  });
+  const output=rv?.[0]?.result||{};
+  stateText(output.saved?"Đã lưu thông tin hiển thị. Tiếp tục hồ sơ sau khi kiểm tra kết quả.":
+    output.reason||"Không ghi nhận được thông tin; trường chưa thấy vẫn để trống.");
+  if(output.saved&&allSource.length){
+    const inspected=chosen;
+    await scanScope();
+    if(byUrl.has(inspected))select(inspected);
+  }
+ }catch(err){stateText("Không đọc được trang: "+err.message);}
+}
 function nextProfile(){
  const queue=listFiltered();
  const ix=queue.findIndex(x=>x.profileUrl===chosen);
@@ -403,7 +443,7 @@ for(const event of ["dragleave","drop"]){
 }
 drop.addEventListener("drop",e=>{
  const file=e.dataTransfer?.files?.[0];
- if(file)loadFile(file).catch(error=>msg("Lỗi nhập CSV: "+error.message));
+ if(file)loadFiles([file]).catch(error=>msg("Lỗi nhập CSV: "+error.message));
 });
 $("stop").addEventListener("click",()=>{
  scanToken++;busy(false);$("progress-title").textContent="Đã dừng theo yêu cầu";
@@ -416,6 +456,15 @@ $("export-integrity").addEventListener("click",exportIntegrity);
 $("xlsxall").addEventListener("click",()=>exportFile("xlsx"));
 $("save").addEventListener("click",()=>saveReview().catch(e=>msg(e.message)));
 $("next").addEventListener("click",nextProfile);
+$("open-review-tab").addEventListener("click",()=>openManualProfile(chosen).catch(e=>stateText(e.message)));
+$("capture-review-tab").addEventListener("click",()=>captureManualProfile().catch(e=>stateText(e.message)));
+$("open-next-tab").addEventListener("click",()=>{
+ const current=results.findIndex(x=>x.profileUrl===chosen);
+ const upcoming=results[current+1];
+ if(!upcoming){stateText("Đã đến cuối danh sách trong phạm vi này.");return;}
+ select(upcoming.profileUrl);
+ openManualProfile(upcoming.profileUrl).catch(e=>stateText(e.message));
+});
 $("copy").addEventListener("click",()=>{
  const p=byUrl.get(chosen);
  if(!p)return;
