@@ -26,8 +26,13 @@
     <input id="upload" type="file" accept=".csv,text/csv,text/plain" aria-label="Chọn file CSV để phân tích">
   </section>
   <section class="progress-wrap" aria-label="Tiến độ phân tích">
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <label for="photo-scope" style="font-weight:700">Phạm vi phân tích:</label>
+      <select id="photo-scope" style="min-width:290px;max-width:100%;width:auto"><option value="">Đang đọc Photo ID...</option></select>
+      <span id="scope-hint" class="small">Mặc định chỉ phân tích một ảnh. Chọn Tất cả ảnh để tổng hợp.</span>
+    </div>
     <div class="progress-heading">
-      <span id="progress-title">Sẵn sàng quét</span><strong id="progress-number" aria-live="polite">0 / 0 tài khoản</strong>
+      <span id="progress-title">Sẵn sàng phân tích CSV (không truy cập profile Facebook)</span><strong id="progress-number" aria-live="polite">0 / 0 tài khoản</strong>
     </div>
     <div class="progress-track" role="progressbar" id="progress-track" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress-bar"></div></div>
     <div class="progress-foot"><span id="last-scanned">Chưa có tài khoản nào được kiểm tra trong dữ liệu.</span><button id="stop" type="button" disabled>Dừng</button></div>
@@ -36,11 +41,12 @@
     <div><small>Tổng tài khoản</small><strong id="total">0</strong></div>
     <div class="stat-red"><small>Nghi vấn · cần rà soát</small><strong id="flagged">0</strong></div>
     <div class="stat-green"><small>Không có dấu hiệu</small><strong id="nosignal">0</strong></div>
-    <div><small>Đã quét</small><strong id="checked">0</strong></div>
+    <div><small>Đã phân tích CSV</small><strong id="checked">0</strong></div>
     <div><small>Số ảnh trong file</small><strong id="photos">0</strong></div>
+    <div><small>Hồ sơ Facebook đã mở để kiểm tra</small><strong>0</strong></div>
   </section>
   <p id="notice" class="notice">
-  Hệ thống phân tích dữ liệu trong CSV, không tự truy cập hàng loạt trang cá nhân.
+  Hệ thống CHỈ phân tích thông tin có trong CSV, chưa kiểm tra nội dung trang cá nhân, bạn bè, nơi ở hoặc lịch sử hoạt động.
   “Không có dấu hiệu” chỉ có nghĩa không thấy tín hiệu bất thường trong dữ liệu đã cung cấp; không phải xác nhận tài khoản thật.
   </p>
   <div class="columns">

@@ -133,5 +133,22 @@ function dedupe(records){
   }
   return [...m.values()];
 }
-return {types,fbUrl,photoId,normalizeProfile,profileMeta,cleanReaction,reactionFromLabel,reactionFromProfileLabel,parseCount,avatarUrl,csv,aggregate,dedupe};
+function scopedRows(records,photo){
+  const all=Array.isArray(records)?records:[];
+  if(photo==="all")return all;
+  if(!/^\d{5,30}$/.test(String(photo||"")))return [];
+  return all.filter(r=>r&&String(r.photoId)===String(photo)&&photoId(r.photoUrl)===String(photo));
+}
+function photoCounts(records){
+  const map=new Map();
+  for(const r of Array.isArray(records)?records:[]){
+    if(!r||!/^\d{5,30}$/.test(String(r.photoId||""))||photoId(r.photoUrl)!==String(r.photoId))continue;
+    const id=String(r.photoId);
+    if(!map.has(id))map.set(id,new Set());
+    const meta=profileMeta(r.profileUrl);
+    if(meta)map.get(id).add(meta.profileUrl);
+  }
+  return [...map].map(([id,urls])=>({photoId:id,count:urls.size}));
+}
+return {types,fbUrl,photoId,normalizeProfile,profileMeta,cleanReaction,reactionFromLabel,reactionFromProfileLabel,parseCount,avatarUrl,csv,aggregate,dedupe,scopedRows,photoCounts};
 });

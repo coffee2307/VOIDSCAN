@@ -12,6 +12,15 @@ for(const perm of ["cookies","identity","webRequest","debugger","tabs","unlimite
 }
 assert.equal(lib.photoId("https://www.facebook.com/photo/?fbid=2030957244381534&set=pcb.2030979361045989"),"2030957244381534");
 assert.equal(lib.photoId("https://www.facebook.com/tuoitretruongthptdian/posts/123"),null);
+const scopeA="2030957244381534",scopeB="2030957077714884";
+const fixtures=[];
+for(let i=0;i<190;i++)fixtures.push({photoId:scopeA,photoUrl:"https://www.facebook.com/photo/?fbid="+scopeA,profileUrl:"https://www.facebook.com/profile.php?id="+(100000000001+i),reaction:"LOVE"});
+for(let i=0;i<110;i++)fixtures.push({photoId:scopeB,photoUrl:"https://www.facebook.com/photo/?fbid="+scopeB,profileUrl:"https://www.facebook.com/profile.php?id="+(100000000001+i),reaction:"LIKE"});
+assert.equal(lib.scopedRows(fixtures,scopeA).length,190);
+assert.equal(lib.scopedRows(fixtures,scopeB).length,110);
+assert.equal(lib.scopedRows(fixtures,"all").length,300);
+assert.equal(lib.scopedRows(fixtures,"").length,0);
+assert.deepEqual(lib.photoCounts(fixtures).map(x=>x.count),[190,110]);
 assert.equal(lib.photoId("https://other.example/photo/?fbid=2030957244381534"),null);
 assert.equal(lib.normalizeProfile("https://www.facebook.com/profile.php?id=1234567890123&comment_id=98"),"https://www.facebook.com/profile.php?id=1234567890123");
 assert.equal(lib.normalizeProfile("https://www.facebook.com/jane.doe/?mibextid=abc"),"https://www.facebook.com/jane.doe/");

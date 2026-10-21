@@ -7,6 +7,7 @@ const STORE="voidscan_reactions_v1";
 const PHOTO_STORE="voidscan_photo_links_v1";
 const COUNT_STORE="voidscan_visible_reaction_counts_v2";
 const PENDING_STORE="voidscan_pending_reactions_v1";
+const ACTIVE_PHOTO_STORE="voidscan_active_photo_v1";
 const MAX_STEPS=180,WAIT_MS=850,MAX_RUN_MS=10*60*1000;
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const root=document.createElement("div");
@@ -34,21 +35,27 @@ panel.innerHTML=[
 '<label for="vphoto">Photo ID (tự nhận khi mở ảnh riêng)</label><input id="vphoto" inputmode="numeric" placeholder="Photo ID từ URL ảnh" maxlength="30">',
 '<div class="actions"><button id="vauto" class="primary">Quét tự động cả 5 loại cảm xúc</button><button id="vcurrent">Quét tab đang mở</button><button id="vlinks">Lưu link ảnh album</button><button id="vstop">Dừng quét</button><button id="vexport">Xuất CSV</button><button id="vdiag">Kiểm tra nhận diện</button></div>',
 '<div class="progress"><div id="vbar"></div></div>',
-'<div class="metrics"><div><strong id="vcount">0</strong>Đã phân loại</div><div><strong id="vall">0</strong>Tổng hợp lệ</div><div><strong id="vpending">0</strong>Chưa rõ loại</div></div>',
+'<div class="metrics"><div><strong id="vcount">0</strong>Đã phân loại · ảnh này</div><div><strong id="vall">0</strong>Tất cả · ảnh này</div><div><strong id="vpending">0</strong>Chưa rõ · ảnh này</div></div>',
 '<p id="vstatus" role="status">Đã sẵn sàng.</p>',
 '<p class="small">User ID, username, avatar, trạng thái bạn bè/theo dõi và số bạn chung chỉ lấy khi hiển thị ngay trong danh sách. Không tự truy cập trang cá nhân. Giới hạn quét 10 phút/lượt.</p></main>'
 ].join("");
 shadow.append(style,panel);
 document.documentElement.appendChild(root);
 const $=id=>shadow.getElementById(id);
-let running=false,stopped=false,minimized=false,lastPhoto="",saving=Promise.resolve();
+let running=false,stopped=false,minimized=false,lastPhoto="",lastHref=location.href,saving=Promise.resolve();
 const report=message=>{$("vstatus").textContent=message;};
 const progress=x=>{$("vbar").style.width=Math.max(0,Math.min(100,x))+"%";};
 const iso=()=>new Date().toISOString();
 const imageUrl=id=>"https://www.facebook.com/photo/?fbid="+id;
 function currentPhoto(){
  const fromUrl=lib.photoId(location.href);
- if(fromUrl&&document.activeElement!==$("vphoto"))$("vphoto").value=fromUrl;
+ if(fromUrl){
+   // URL of the actual visible photo has absolute precedence over a stale input.
+   if($("vphoto").value!==fromUrl)$("vphoto").value=fromUrl;
+   return fromUrl;
+ }
+ // Never silently reuse a Photo ID across Facebook SPA route changes.
+ if(location.href!==lastHref)return null;
  const value=$("vphoto").value.trim();
  return /^\d{5,30}$/.test(value)?value:null;
 }
@@ -58,10 +65,12 @@ async function dataRows(){
 }
 async function updateMetrics(){
  const all=await dataRows(),id=currentPhoto();
- $("vcount").textContent=all.filter(r=>r.photoId===id).length.toLocaleString("vi-VN");
- $("vall").textContent=all.length.toLocaleString("vi-VN");
- const unclassified=(await chrome.storage.local.get(PENDING_STORE))[PENDING_STORE]||[];
- $("vpending").textContent=unclassified.length.toLocaleString("vi-VN");
+ const classified=lib.scopedRows(all,id);
+ const raw=(await chrome.storage.local.get(PENDING_STORE))[PENDING_STORE]||[];
+ const pending=lib.scopedRows(raw,id);
+ $("vcount").textContent=classified.length.toLocaleString("vi-VN");
+ $("vall").textContent=(classified.length+pending.length).toLocaleString("vi-VN");
+ $("vpending").textContent=pending.length.toLocaleString("vi-VN");
 }
 function dialogInfo(){
  const boxes=[...document.querySelectorAll('[role="dialog"]')].filter(d=>{
@@ -227,12 +236,12 @@ async function saveDisplayedCount(photo,type,label){
  storage[photo]=prev;
  await chrome.storage.local.set({[COUNT_STORE]:storage});
 }
-async function snapshot(dialog,mode){
- const id=currentPhoto();
- if(!id)throw Error("Không nhận được Photo ID. Hãy mở ảnh riêng.");
+async function snapshot(dialog,mode,expectedId){
+ if(!expectedId||currentPhoto()!==expectedId)throw Error("Ảnh đã thay đổi khi quét; đã dừng để tránh gán sai Photo ID.");
  const cards=visibleCards(dialog);
  if(!cards.length)return {added:0,shown:0,skipped:0};
- const result=await saveCards(id,mode,cards);
+ if(currentPhoto()!==expectedId)throw Error("Ảnh thay đổi trong lúc đọc, không lưu kết quả.");
+ const result=await saveCards(expectedId,mode,cards);
  await updateMetrics();
  return {...result,shown:cards.length};
 }
@@ -266,7 +275,7 @@ async function runType(type,tab,start,id){
    if(Date.now()-start>MAX_RUN_MS){report("Dừng vì đạt giới hạn 10 phút.");break;}
    const live=dialogInfo();
    if(!live||currentPhoto()!==id)break;
-   const result=await snapshot(live,mode);
+   const result=await snapshot(live,mode,id);
    added+=result.added;
    skipped+=result.skipped;
    steps++;
@@ -285,7 +294,7 @@ async function runType(type,tab,start,id){
    await delay(WAIT_MS);
  }
  const last=dialogInfo();
- if(last&&!stopped&&currentPhoto()===id)added+=(await snapshot(last,mode)).added;
+ if(last&&!stopped&&currentPhoto()===id)added+=(await snapshot(last,mode,id)).added;
  return {added,skipped,steps};
 }
 async function beginScan(allTypes){
@@ -295,6 +304,7 @@ async function beginScan(allTypes){
  const dialog=dialogInfo();
  if(!dialog){report("Hãy mở danh sách reaction của ảnh trên Facebook trước.");return;}
  running=true;stopped=false;lastPhoto=id;
+ await chrome.storage.local.set({[ACTIVE_PHOTO_STORE]:id});
  $("vauto").disabled=true;$("vcurrent").disabled=true;$("vphoto").disabled=true;
  const start=Date.now();let total=0,attempted=0;
  try{
@@ -347,10 +357,13 @@ async function recordPhotoLinks(){
    ". Hãy mở rộng album nếu còn ảnh ẩn.");
 }
 async function exportCSV(){
- const records=lib.dedupe(await dataRows());
+ const id=currentPhoto();
+ if(!id){report("Chưa xác định Photo ID. Mở ảnh riêng trước khi xuất.");return;}
+ const records=lib.scopedRows(lib.dedupe(await dataRows()),id);
  const raw=(await chrome.storage.local.get(PENDING_STORE))[PENDING_STORE];
  const existing=new Set(records.map(r=>r.photoId+"|"+r.profileUrl));
- const pending=(Array.isArray(raw)?raw:[]).filter(r=>!existing.has(r.photoId+"|"+r.profileUrl));
+ const pending=lib.scopedRows((Array.isArray(raw)?raw:[]),id)
+   .filter(r=>!existing.has(r.photoId+"|"+r.profileUrl));
  if(!records.length&&!pending.length){report("Chưa có URL để xuất.");return;}
  const columns=["photoId","photoUrl","profileUrl","userId","username","displayName",
   "reaction","avatarUrl","friendshipStatus","subscribeStatus","mutualFriendsNumber","capturedAt"];
@@ -358,10 +371,10 @@ async function exportCSV(){
  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
  const url=URL.createObjectURL(blob);
  const anchor=document.createElement("a");
- anchor.href=url;anchor.download="VOIDSCAN_reactions_"+iso().replace(/[:.]/g,"-").slice(0,19)+".csv";
+ anchor.href=url;anchor.download="VOIDSCAN_photo_"+id+"_"+iso().replace(/[:.]/g,"-").slice(0,19)+".csv";
  root.appendChild(anchor);anchor.click();anchor.remove();
  setTimeout(()=>URL.revokeObjectURL(url),30000);
- report("Đã xuất "+records.length+" reaction xác định và "+pending.length+" URL chưa rõ cảm xúc.");
+ report("Ảnh "+id+": đã xuất "+records.length+" reaction xác định và "+pending.length+" URL chưa rõ cảm xúc. Không gộp ảnh khác.");
 }
 function home(){
  if(minimized){$("vmain").classList.remove("hidden");minimized=false;}
@@ -423,12 +436,23 @@ handle.addEventListener("pointerup",stopDrag);
 handle.addEventListener("pointercancel",stopDrag);
 const watcher=setInterval(()=>{
  if(!document.documentElement.contains(root)){clearInterval(watcher);return;}
- const id=lib.photoId(location.href);
- if(id&&id!==lastPhoto&&!running){
-   lastPhoto=id;$("vphoto").value=id;updateMetrics().catch(()=>{});
+ const href=location.href;
+ const id=lib.photoId(href);
+ if(href!==lastHref){
+   if(running)stopped=true;
+   lastHref=href;
+   $("vphoto").value=id||"";
+   lastPhoto=id||"";
+   if(id)chrome.storage.local.set({[ACTIVE_PHOTO_STORE]:id}).catch(()=>{});
+   updateMetrics().catch(()=>{});
+   report(id?"Đã chuyển sang ảnh "+id+". Thống kê/CSV chỉ thuộc ảnh này.":
+     "Đã đổi trang nhưng chưa có Photo ID. Mở ảnh riêng để tránh gán sai.");
  }
-},1300);
+},650);
 const initial=lib.photoId(location.href);
-if(initial){lastPhoto=initial;$("vphoto").value=initial;}
+if(initial){
+ lastPhoto=initial;$("vphoto").value=initial;
+ chrome.storage.local.set({[ACTIVE_PHOTO_STORE]:initial}).catch(()=>{});
+}
 updateMetrics().catch(()=>report("Không đọc được bộ nhớ extension."));
 })();

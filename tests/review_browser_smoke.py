@@ -63,14 +63,18 @@ class ImportedCsvBrowser(unittest.TestCase):
     page.locator("#upload").set_input_files({
       "name":"VOIDSCAN_reactions_test.csv","mimeType":"text/csv","buffer":fixture()
     })
-    page.wait_for_function('document.getElementById("progress-title").textContent==="Hoàn tất sàng lọc"',timeout=20000)
+    page.wait_for_function('document.getElementById("progress-title").textContent==="Hoàn tất phân tích CSV (chưa xác minh profile)"',timeout=20000)
+    self.assertNotEqual(page.locator("#photo-scope").input_value(),"all")
+    self.assertEqual(page.locator("#total").inner_text(),"2") # two records on last image? one of each class
+    page.locator("#photo-scope").select_option("all")
+    page.wait_for_function('document.getElementById("total").textContent==="13"',timeout=20000)
     self.assertEqual(page.locator("#total").inner_text(),"13")
-    self.assertEqual(page.locator("#flagged").inner_text(),"2")
-    self.assertEqual(page.locator("#nosignal").inner_text(),"11")
+    self.assertEqual(page.locator("#flagged").inner_text(),"1") # friendsCount alone is not evidence of an empty profile
+    self.assertEqual(page.locator("#nosignal").inner_text(),"12")
     self.assertEqual(page.locator("#checked").inner_text(),"13")
     self.assertEqual(page.locator("#photos").inner_text(),"10")
     self.assertEqual(page.locator("#progress-number").inner_text(),"13 / 13 tài khoản")
-    self.assertEqual(page.locator(".queuebutton").count(),2)
+    self.assertEqual(page.locator(".queuebutton").count(),1)
     self.assertIn("Nghi vấn",page.locator(".queuebutton").first.inner_text())
     self.assertEqual(page.locator("#progress-track").get_attribute("aria-valuenow"),"100")
     with page.expect_download(timeout=15000) as get_csv:

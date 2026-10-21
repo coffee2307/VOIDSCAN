@@ -4,7 +4,7 @@ const $=id=>document.getElementById(id);
 const FILE=window.VoidscanFileAudit,LIB=window.VoidscanAudit, XLSX=window.VoidscanXlsx;
 const STORAGE_REACTIONS="voidscan_reactions_v1",STORAGE_PENDING="voidscan_pending_reactions_v1";
 const STORAGE_DECISIONS="voidscan_screening_reviews_v1",MAX_CSV_BYTES=15*1024*1024;
-let scanToken=0,source=[],profiles=[],results=[],byUrl=new Map(),chosen="",decisionMap={};
+let scanToken=0,source=[],allSource=[],sourceOrigin="",profiles=[],results=[],byUrl=new Map(),chosen="",decisionMap={};
 let sourceLabel="Dữ liệu trong Chrome";
 let currentProgress={done:0,total:0,flagged:0,clear:0};
 const fmt=n=>Number(n||0).toLocaleString("vi-VN");
@@ -80,7 +80,7 @@ function select(url,redraw=true){
 }
 function setLast(p){
  const short=p.username||p.userId||p.profileUrl.split("/").filter(Boolean).at(-1)||"Hồ sơ";
- $("last-scanned").textContent="Vừa quét: "+short+" — "+p.status;
+ $("last-scanned").textContent="Vừa phân tích dòng CSV: "+short+" — "+p.status;
  $("last-scanned").style.color=p.status===FILE.LABEL_SUSPECT?"#ffb1bd":"#9cedbd";
 }
 async function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
@@ -99,13 +99,16 @@ async function scan(data,origin){
   currentProgress={total:profiles.length,done:0,flagged:0,clear:0};
   $("photos").textContent=fmt(prepared.photoTotal);
   updateCounter();
-  $("notice").textContent="Đọc "+fmt(prepared.rows.length)+" dòng hợp lệ từ file. "+
+  $("notice").textContent="PHẠM VI: "+($("photo-scope").value==="all"?"TẤT CẢ ẢNH":("CHỈ ẢNH "+$("photo-scope").value))+
+   ". Đây là phân tích dữ liệu CSV, KHÔNG truy cập hồ sơ Facebook. 0 nghi vấn chỉ có nghĩa 0 tín hiệu từ các cột đã nhập, KHÔNG chứng minh các tài khoản đều thật. Đọc "+fmt(prepared.rows.length)+" dòng hợp lệ. "+
    (prepared.warnings.invalidProfile?
     fmt(prepared.warnings.invalidProfile)+" dòng thiếu URL hồ sơ đã được bỏ qua. ":"")+
    (prepared.warnings.unknownReaction?
     fmt(prepared.warnings.unknownReaction)+" reaction chưa xác định loại. ":"")+
-   "Chỉ phân tích thông tin có trong CSV, không mở trang Facebook của người tham gia.";
-  $("progress-title").textContent="Đang sàng lọc tài khoản...";
+   (prepared.warnings.photoMismatch?
+    fmt(prepared.warnings.photoMismatch)+" dòng có Photo ID mâu thuẫn với Photo URL bị loại. ":"")+
+   "Không kiểm tra bio, địa phương, bạn bè hoặc hoạt động nếu CSV không cung cấp; chưa xác minh tính thật/giả.";
+  $("progress-title").textContent="Đang phân tích dữ liệu CSV — không mở profile Facebook";
   const decisions=await chrome.storage.local.get(STORAGE_DECISIONS);
   decisionMap=decisions[STORAGE_DECISIONS]&&typeof decisions[STORAGE_DECISIONS]==="object"?
     decisions[STORAGE_DECISIONS]:{};
@@ -122,15 +125,39 @@ async function scan(data,origin){
    if(i%8===7)await sleep(8);
   }
   if(ticket!==scanToken)return;
-  $("progress-title").textContent="Hoàn tất sàng lọc";
+  $("progress-title").textContent="Hoàn tất phân tích CSV (chưa xác minh profile)";
   drawQueue();
-  msg("Hoàn thành "+fmt(currentProgress.done)+" tài khoản. "+
-   fmt(currentProgress.flagged)+" cần rà soát; "+fmt(currentProgress.clear)+
-   " chưa thấy tín hiệu trong CSV.");
+  msg("Hoàn thành "+fmt(currentProgress.done)+" URL trong CSV của phạm vi đã chọn. "+
+   fmt(currentProgress.flagged)+" có tín hiệu cần rà soát; "+fmt(currentProgress.clear)+
+   " chưa thấy tín hiệu trong CSV. Số hồ sơ Facebook thực sự được mở/kiểm tra: 0.");
  }catch(e){
    $("progress-title").textContent="Lỗi phân tích";
    msg("Không thể phân tích: "+(e.message||"lỗi không xác định"));
  }finally{if(ticket===scanToken)busy(false);}
+}
+async function useSource(data,origin){
+ allSource=data;
+ sourceOrigin=origin;
+ const valid=FILE.normaliseRows(data).rows;
+ const options=LIB.photoCounts(valid),select=$("photo-scope");
+ const storage=await chrome.storage.local.get("voidscan_active_photo_v1");
+ const active=String(storage.voidscan_active_photo_v1||"");
+ select.replaceChildren();
+ const add=(id,label)=>{const op=document.createElement("option");op.value=id;op.textContent=label;select.append(op);};
+ for(const p of options)add(p.photoId,"Ảnh "+p.photoId+" · "+p.count+" URL");
+ add("all","Tất cả ảnh — chỉ chọn khi cần tổng hợp");
+ const chosen=options.some(p=>p.photoId===active)?active:(options.at(-1)?.photoId||"all");
+ select.value=chosen;
+ await scanScope();
+}
+async function scanScope(){
+ const photo=$("photo-scope").value;
+ $("scope-hint").textContent=photo==="all"?
+   "Đang TỔNG HỢP TẤT CẢ ẢNH — chuyển về Photo ID để tách riêng.":
+   "Chỉ phân tích ảnh "+photo+"; các ảnh còn lại không bị cộng vào.";
+ const valid=FILE.normaliseRows(allSource).rows;
+ await scan(photo==="all"?valid:LIB.scopedRows(valid,photo),sourceOrigin+
+  (photo==="all"?" · Tất cả ảnh":" · Ảnh "+photo));
 }
 async function loadFromChrome(){
  const saved=await chrome.storage.local.get([STORAGE_REACTIONS,STORAGE_PENDING]);
@@ -138,7 +165,7 @@ async function loadFromChrome(){
  const pending=Array.isArray(saved[STORAGE_PENDING])?saved[STORAGE_PENDING]:[];
  const known=new Set(classified.map(r=>r.photoId+"|"+r.profileUrl));
  const merged=[...classified,...pending.filter(r=>!known.has(r.photoId+"|"+r.profileUrl))];
- await scan(merged,"Dữ liệu trong Chrome · "+fmt(merged.length)+" dòng reaction");
+ await useSource(merged,"Dữ liệu trong Chrome · "+fmt(merged.length)+" dòng reaction");
 }
 async function loadFile(file){
  if(!file)return;
@@ -147,7 +174,7 @@ async function loadFile(file){
    throw Error("Chỉ hỗ trợ file .csv. Xuất CSV từ popup VOIDSCAN trước.");
  const fileText=await file.text();
  const parsed=FILE.parseCSV(fileText);
- await scan(parsed.rows,file.name+" · "+fmt(parsed.rows.length)+" dòng · lưu cục bộ");
+ await useSource(parsed.rows,file.name+" · "+fmt(parsed.rows.length)+" dòng · không tải lên máy chủ");
 }
 function allRows(flaggedOnly){
  return results.filter(p=>!flaggedOnly||p.status===FILE.LABEL_SUSPECT);
@@ -199,6 +226,7 @@ function nextProfile(){
  else msg("Đã đến cuối danh sách trong bộ lọc hiện tại.");
 }
 $("source-local").addEventListener("click",()=>loadFromChrome().catch(e=>msg("Lỗi đọc dữ liệu Chrome: "+e.message)));
+$("photo-scope").addEventListener("change",()=>scanScope().catch(e=>msg("Lỗi thay đổi phạm vi ảnh: "+e.message)));
 $("upload").addEventListener("change",e=>{
  const file=e.target.files?.[0];
  if(file)loadFile(file).catch(e=>msg("Không nhập được CSV: "+e.message));

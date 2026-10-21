@@ -27,7 +27,7 @@ main{max-width:1510px;margin:0 auto;padding:25px clamp(16px,3vw,45px)}
 .progress-foot{font-size:12px;color:#a5bfdf;min-height:30px}
 .progress-foot span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .progress-foot button{padding:5px 11px}
-.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-top:16px}
+.stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-top:16px}
 .stats>div{padding:16px 17px;background:#172840;border:1px solid #304765;border-radius:12px}
 .stats small{font-size:12px;color:#b1c4de;display:block}
 .stats strong{font-size:31px;letter-spacing:-1px;font-variant-numeric:tabular-nums;display:block;margin-top:7px}

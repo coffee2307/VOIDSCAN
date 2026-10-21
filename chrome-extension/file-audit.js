@@ -74,11 +74,15 @@ function numberOrNull(x){
  return Number.isSafeInteger(n)&&n<=10000000?n:null;
 }
 function normaliseRows(input){
- const rows=[],warnings={invalidProfile:0,invalidPhoto:0,unknownReaction:0};
+ const rows=[],warnings={invalidProfile:0,invalidPhoto:0,photoMismatch:0,unknownReaction:0};
  for(const item of input){
    const meta=lib.profileMeta(item.profileUrl||"");
    if(!meta){warnings.invalidProfile++;continue;}
-   const photoID=String(item.photoId||"").trim()||lib.photoId(item.photoUrl||"")||"";
+   const explicitID=String(item.photoId||"").trim();
+   const urlID=lib.photoId(item.photoUrl||"")||"";
+   // Never silently mix two distinct photos when a malformed CSV contradicts itself.
+   if(explicitID&&urlID&&explicitID!==urlID){warnings.photoMismatch++;continue;}
+   const photoID=explicitID||urlID;
    const photoValid=/^\d{5,30}$/.test(photoID);
    if(!photoValid)warnings.invalidPhoto++;
    const reaction=lib.cleanReaction(item.reaction)||"UNKNOWN";
@@ -102,7 +106,7 @@ function prepare(raw){
    if(!item){
      item={profileUrl:r.profileUrl,userId:r.userId,username:r.username,
        photoIds:new Set(),reactions:new Set(),perPhoto:new Map(),
-       fields:new Set(),friendsCount:null,followingCount:null,
+       fields:new Set(),profileFlagsObserved:new Set(),friendsCount:null,followingCount:null,
        rawRows:0,unknownRows:0,sourceRows:[]};
      profiles.set(r.profileUrl,item);
    }
@@ -117,7 +121,13 @@ function prepare(raw){
    for(const [field,key] of [["bio","hasBio"],["currentCity","hasCurrentCity"],
      ["hometown","hasHometown"],["education","hasEducation"],["work","hasWork"],
      ["recentActivity","recentActivity"]]){
-     if(presence(r[key])||(r[field]&&r[field]!=="0"&&r[field]!=="false"))item.fields.add(field);
+     const indicator=String(r[key]??"").trim().toLowerCase();
+     if(["0","1","true","false","yes","no","có","không"].includes(indicator))
+       item.profileFlagsObserved.add(field);
+     const raw=String(r[field]??"").trim();
+     if(presence(r[key])||(raw&&!["0","false","unknown","n/a","không rõ","không","no"].includes(raw.toLowerCase()))) {
+       item.fields.add(field);item.profileFlagsObserved.add(field);
+     }
    }
    if(r.friendsCount!==null)item.friendsCount=r.friendsCount;
    if(r.followingCount!==null)item.followingCount=r.followingCount;
@@ -131,17 +141,18 @@ function scoreProfile(p,photoTotal,decision){
  if(photoTotal>=8&&photoCount>=Math.max(6,Math.ceil(photoTotal*.70)))
    reasons.push("Tương tác trên "+photoCount+"/"+photoTotal+" ảnh đã thu thập; cần đối chiếu vì có thể là bình chọn hợp lệ");
  const knownFields=p.fields.size;
- if(knownFields===0&&
+ if(knownFields===0&&p.profileFlagsObserved.size>=2&&
     ((p.friendsCount!==null&&p.friendsCount>=1000)||
      (p.followingCount!==null&&p.followingCount>=2000)))
-   reasons.push("Hồ sơ ít trường quan sát được kèm số bạn bè/theo dõi cao; chỉ là chỉ báo ưu tiên kiểm tra");
+   reasons.push("CSV có ít nhất hai mục hồ sơ được kiểm tra là không có thông tin, kèm số bạn bè/theo dõi cao; cần đối chiếu trực tiếp, không tự kết luận bot");
  const previous=decision&&decision[p.profileUrl]||{};
  if(previous.status==="needs_review")reasons.push("Được người kiểm duyệt đánh dấu cần kiểm tra");
  const suspected=reasons.length>0;
  return {profileUrl:p.profileUrl,userId:p.userId,username:p.username,
    photoCount,photoIds:[...p.photoIds].join(" | "),
    reactionTypes:[...p.reactions].join(" | "),reactionRows:p.rawRows,unknownRows:p.unknownRows,
-   availableInfoPoints:knownFields,friendsCount:p.friendsCount??"",
+   availableInfoPoints:knownFields,profileInfoFieldsObserved:p.profileFlagsObserved.size,
+   profileActuallyChecked:false,friendsCount:p.friendsCount??"",
    followingCount:p.followingCount??"",sourceRows:p.sourceRows.join(" | "),
    status:suspected?LABEL_SUSPECT:LABEL_CLEAR,
    evidence:reasons.join(" | ")||(p.unknownRows>0?
@@ -164,6 +175,8 @@ const COLUMNS=[
  {key:"reactionRows",label:"Dòng đã nhập"},
  {key:"unknownRows",label:"Chưa rõ reaction"},
  {key:"availableInfoPoints",label:"Thông tin sẵn có (0-6)"},
+ {key:"profileInfoFieldsObserved",label:"Số mục hồ sơ có dữ liệu kiểm tra"},
+ {key:"profileActuallyChecked",label:"Đã truy cập kiểm tra hồ sơ"},
  {key:"friendsCount",label:"Bạn bè (nếu có)"},
  {key:"followingCount",label:"Theo dõi (nếu có)"},
  {key:"reviewerStatus",label:"Duyệt thủ công"},

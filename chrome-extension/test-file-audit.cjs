@@ -40,6 +40,14 @@ assert.equal(semicolon.rows[0].reaction,"LOVE");
 assert.throws(()=>f.parseCSV("username,reaction\nalex,LIKE\n"),/profileUrl/);
 assert.throws(()=>f.parseCSV("profileUrl,reaction\n\"bad\n"),/ngoặc kép/);
 assert.equal(f.prepare([{photoId:pic(0),profileUrl:"https://evil.test/",reaction:"LIKE"}]).profiles.length,0);
+const mismatch=f.prepare([{photoId:pic(0),photoUrl:"https://www.facebook.com/photo/?fbid="+pic(1),
+  profileUrl:profile(6),reaction:"LOVE"}]);
+assert.equal(mismatch.rows.length,0);
+assert.equal(mismatch.warnings.photoMismatch,1);
+const unknownMeta=f.prepare([{photoId:pic(0),profileUrl:profile(77),reaction:"LIKE",
+  friendsCount:"5000",followingCount:"3000"}]);
+assert.equal(f.scoreProfile(unknownMeta.profiles[0],1,{}).status,"không có dấu hiệu");
+assert.equal(f.scoreProfile(unknownMeta.profiles[0],1,{}).profileInfoFieldsObserved,0);
 const byte=xlsx.workbook(scored,f.COLUMNS);
 assert(byte instanceof Uint8Array&&byte.byteLength>5000);
 assert.equal(new DataView(byte.buffer).getUint32(0,true),0x04034b50);

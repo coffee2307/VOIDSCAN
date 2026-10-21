@@ -1,4 +1,20 @@
-# VOIDSCAN Reaction Audit — Chrome Extension 0.4.0
+# VOIDSCAN Reaction Audit — Chrome Extension 0.4.1
+
+## Hotfix 0.4.1 — Tách từng ảnh và làm rõ phạm vi kiểm toán
+
+- **Nguyên nhân 190 + 110 = 300:** lưu trữ cục bộ được thiết kế lưu nhiều Photo ID (đúng cho tổng hợp toàn cuộc thi), nhưng chỉ số tổng trong bảng nổi và nút CSV mặc định dùng toàn bộ dữ liệu (không đúng với thao tác từng ảnh). Bản mới chỉ hiển thị **reaction của ảnh đang mở**; CSV trên Facebook chỉ xuất Photo ID hiện tại.
+- **Popup có dropdown Photo ID:** mặc định xem ảnh cuối đang mở; chọn ảnh 1 hoặc ảnh 2 để đếm và xuất riêng. Chỉ khi tự chọn **Tất cả ảnh** mới cộng dữ liệu toàn cuộc thi. Không xóa lịch sử ảnh cũ.
+- **Tab review có dropdown Photo ID:** khi nhập CSV nhiều ảnh hoặc đọc dữ liệu Chrome, mặc định xem riêng một ảnh. Bạn có thể chọn **Tất cả ảnh** để kiểm tra mẫu hành vi giao thoa giữa nhiều ảnh. Xuất CSV/Excel theo phạm vi đang chọn.
+- **Chống gán nhầm ảnh khi Facebook đổi trang:** ưu tiên Photo ID trong URL; khi SPA điều hướng, dừng tác vụ quét cũ; kiểm tra ID trước khi lưu, không giữ ID cũ khi URL đã đổi; cảnh báo nếu CSV chứa Photo ID mâu thuẫn với Photo URL.
+- **Chỉ số sàng lọc minh bạch:** 0 nghi vấn không đồng nghĩa 0 bot. Phiên bản hiện tại chỉ đọc những trường đã có trong CSV, không thực sự mở URL hồ sơ Facebook. Dashboard hiển thị rõ **Hồ sơ Facebook đã mở để kiểm tra: 0**. Các URL "không có dấu hiệu" chỉ là không có tín hiệu trong dữ liệu CSV, chưa xác minh tài khoản.
+- **Chấm điểm không suy đoán thiếu thông tin:** việc CSV thiếu các cột bio/học vấn/quê quán không có nghĩa tài khoản không có các thông tin này. Chỉ đưa tín hiệu "ít thông tin" ra khi CSV có các mục kiểm tra hồ sơ rõ ràng.
+- Thêm kiểm thử tự động tái hiện **190 URL ảnh A + 110 URL ảnh B**, popup và CSV từng ảnh và tổng hợp; thử chuyển Facebook SPA giữa hai ảnh; kiểm thử nhập CSV/Excel cùng các kiểm thử cũ.
+
+**Cách cập nhật:** mở `chrome://extensions`, Reload VOIDSCAN rồi tải lại Facebook và review.html. Không nhấn xóa dữ liệu. Dữ liệu cũ có thể đã bị gán sai Photo ID trong những phiên cũ nếu người dùng chuyển ảnh khi đang quét. Những dòng có Photo ID gán sai trong lịch sử mà Photo URL cũng được tạo từ ID sai không thể tự phục hồi; nếu nghi ngờ, hãy đối chiếu ảnh và quét lại.
+
+**Không nhầm lẫn:** `Đã phân tích CSV n/n` chỉ là chạy thuật toán trên dữ liệu đã nhập. Hệ thống không tự mở từng trang cá nhân, không xác minh bio, số bạn bè, nơi ở hay độ thật/giả của tài khoản. Khi chỉ có một ảnh và file chỉ chứa reaction/URL, kết quả 0 tín hiệu nghi vấn là có thể xảy ra dù có bot thực tế.
+
+## Phiên bản 0.4.0
 
 ## Mới ở phiên bản 0.4.0 — CSV → sàng lọc → Excel
 
