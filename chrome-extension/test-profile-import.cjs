@@ -11,7 +11,7 @@ const rows=[
 ];
 let prepared=audit.prepare(rows);
 let score=prepared.profiles.map(p=>audit.scoreProfile(p,1,{}));
-assert(score.every(p=>p.status==="không có dấu hiệu"));
+assert(score.every(p=>p.status==="chưa đủ dữ liệu"));
 assert.equal(score[0].avatarEvidence,"unknown");
 assert(score[1].dataQuality.includes("UNKNOWN"));
 const source=[

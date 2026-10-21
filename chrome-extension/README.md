@@ -1,4 +1,18 @@
-# VOIDSCAN Reaction Audit — Chrome Extension 0.4.4
+# VOIDSCAN Reaction Audit — Chrome Extension 0.5.0
+
+## 0.5.0 — Không còn coi dữ liệu chưa thu thập là tài khoản sạch
+
+- **Ba trạng thái:** nghi vấn (có bằng chứng quan sát được), chưa thấy dấu hiệu (đã có dữ liệu để xem xét), chưa đủ dữ liệu (CSV chỉ có URL/reaction).
+- **Nhóm kiểm tra dữ liệu độc lập:** reaction UNKNOWN được tính vào "Cần kiểm tra reaction" nhưng không biến thành nhãn bot. Bộ lọc mặc định "Ưu tiên cần xử lý" hiển thị cả nghi vấn thực và lỗi reaction.
+- **Đúng ví dụ 190 URL / 1 ảnh / không avatar/địa điểm:** 190 chưa đủ dữ liệu và 12 cần kiểm tra reaction. Đó là 12 lỗi dữ liệu, KHÔNG phải 12 bot. Không gán 190 tài khoản là "không có dấu hiệu".
+- **Phân tích hành vi nhiều ảnh:** so sánh tỷ lệ ảnh có tương tác khi đã có ít nhất 4 ảnh trong cùng nhóm; chỉ là cơ sở rà soát, không tự loại phiếu.
+- **Metadata công khai tùy chọn:** nút thử 10 URL/lượt chỉ GET HTML công khai và bỏ cookie; cần cấp quyền Facebook bằng thao tác người dùng. Dừng nếu login, rate limit hay checkpoint; chỉ lưu trường xuất hiện rõ ràng, không bảo đảm Facebook sẽ cho phép đọc.
+- **Ghi nhận trang người dùng chủ động mở:** tại popup bấm "Ghi nhận hồ sơ Facebook đang mở". Chỉ lấy avatar hoặc thành phố tự khai khi thực sự hiển thị. Dữ liệu lưu tại Chrome, không chụp toàn bộ trang, không lấy danh sách bạn bè, email, số điện thoại hay cookies. Không tự chạy hàng loạt URL Facebook.
+- **Đồng bộ kết quả:** tab Kiểm toán đọc những quan sát đã lưu trong Chrome và kết hợp CSV bổ sung; có thể phân loại lại khi nhập thêm bằng chứng. Dĩ An, TP.HCM, Bình Dương áp dụng quy tắc ưu tiên địa phương của người dùng nhưng không xác minh danh tính.
+- Chế độ này không bảo đảm xác định bot: việc huấn luyện kiểm định khả năng phát hiện cần dữ liệu ground truth đáng tin cậy. Không suy ra bot chỉ từ reaction UNKNOWN, trùng tên, ID số, hay cột avatar trống.
+
+**Cách nâng cấp:** chrome://extensions → Reload VOIDSCAN → mở lại Facebook và tab Kiểm toán.
+
 
 ## 0.4.4 — Sửa quy tắc dựa trên dữ liệu thật
 

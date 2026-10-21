@@ -6,7 +6,7 @@
  root.VoidscanFileAudit=api;
 })(typeof globalThis!=="undefined"?globalThis:this,function(lib){
 "use strict";
-const LABEL_SUSPECT="nghi vấn", LABEL_CLEAR="không có dấu hiệu";
+const LABEL_SUSPECT="nghi vấn", LABEL_CLEAR="không có dấu hiệu", LABEL_INSUFFICIENT="chưa đủ dữ liệu";
 const HEADER_MAP={
  profileurl:"profileUrl",profile_url:"profileUrl",profilelink:"profileUrl",urlprofile:"profileUrl",
  "url tài khoản":"profileUrl","link tài khoản":"profileUrl","facebookurl":"profileUrl",
@@ -170,7 +170,7 @@ function scoreProfile(p,photoTotal,decision){
    reasons.push("Nguồn hồ sơ đã kiểm tra báo không thấy avatar; dấu hiệu yếu, cần đối chiếu");
  const conflicts=[...p.perPhoto].filter(([,set])=>set.size>1);
  if(conflicts.length)reasons.push("Nhiều loại reaction được ghi trên cùng ảnh; có thể do người dùng đổi cảm xúc giữa các lần xuất");
- if(photoTotal>=8&&photoCount>=Math.max(6,Math.ceil(photoTotal*.70)))
+ if(photoTotal>=4&&photoCount>=Math.max(3,Math.ceil(photoTotal*.75)))
    reasons.push("Tương tác trên "+photoCount+"/"+photoTotal+" ảnh đã thu thập; cần đối chiếu vì có thể là bình chọn hợp lệ");
  const knownFields=p.fields.size;
  if(knownFields===0&&p.profileFlagsObserved.size>=2&&
@@ -182,7 +182,17 @@ function scoreProfile(p,photoTotal,decision){
  const localMatch=p.regionContext==="local";
  if(localMatch&&previous.status!=="needs_review"&&conflicts.length===0)reasons.length=0;
  const suspected=reasons.length>0;
+ const metadataObserved=p.avatarEvidence!=="unknown"||
+   p.regionContext!=="unknown"||p.profileFlagsObserved.size>0||
+   p.friendsCount!==null||p.followingCount!==null;
+ const behavioralObserved=photoTotal>=4||conflicts.length>0;
+ const sufficient=metadataObserved||behavioralObserved;
+ const classification=suspected?LABEL_SUSPECT:
+    (sufficient?LABEL_CLEAR:LABEL_INSUFFICIENT);
  return {profileUrl:p.profileUrl,userId:p.userId,username:p.username,displayName:p.displayName||"",
+   evidenceQuality:metadataObserved?"profile_observed":behavioralObserved?"multi_photo":"url_reaction_only",
+   needsReactionCheck:p.unknownRows>0,
+
    avatarEvidence:p.avatarEvidence||"unknown",regionContext:p.regionContext||"unknown",
    profileDataSource:p.profileDataSource||"not_collected",dataQuality:quality.join(" | "),
    localRuleApplied:localMatch&&!suspected?"Ưu tiên theo địa điểm tự khai; không xác minh danh tính":"",
@@ -190,12 +200,12 @@ function scoreProfile(p,photoTotal,decision){
    photoCount,photoIds:[...p.photoIds].join(" | "),
    reactionTypes:[...p.reactions].join(" | "),reactionRows:p.rawRows,unknownRows:p.unknownRows,
    availableInfoPoints:knownFields,profileInfoFieldsObserved:p.profileFlagsObserved.size,
-   profileActuallyChecked:false,friendsCount:p.friendsCount??"",
+   profileActuallyChecked:p.profileDataSource==="observed_open_profile",friendsCount:p.friendsCount??"",
    followingCount:p.followingCount??"",sourceRows:p.sourceRows.join(" | "),
-   status:suspected?LABEL_SUSPECT:LABEL_CLEAR,
+   status:classification,
    evidence:reasons.join(" | ")||(localMatch?
       "Địa điểm tự khai khớp khu vực ưu tiên; CHƯA xác minh tài khoản thật":
-      "Chưa có tín hiệu hành vi/hồ sơ được quan sát đủ để đánh giá; không gắn nhãn nghi vấn"),
+      "Chưa có tín hiệu đủ để đánh giá tài khoản; cần dữ liệu avatar, địa điểm hoặc lịch sử nhiều ảnh"),
    reviewerStatus:previous.status||"unreviewed",
    reviewNotes:previous.notes||"",
    botConfirmed:"CHƯA_XÁC_MINH",
@@ -213,6 +223,8 @@ const COLUMNS=[
  {key:"profileDataSource",label:"Nguồn dữ liệu hồ sơ"},
  {key:"localRuleApplied",label:"Quy tắc địa phương"},
  {key:"dataQuality",label:"Vấn đề dữ liệu (không phải bot)"},
+ {key:"needsReactionCheck",label:"Cần kiểm tra loại reaction"},
+ {key:"evidenceQuality",label:"Độ bao phủ bằng chứng"},
  {key:"evidence",label:"Lý do / bằng chứng"},
  {key:"photoCount",label:"Số ảnh tương tác"},
  {key:"photoIds",label:"Photo IDs"},
@@ -228,5 +240,5 @@ const COLUMNS=[
  {key:"reviewNotes",label:"Ghi chú"},
  {key:"botConfirmed",label:"Kết luận bot"},
 ];
-return {parseCSV,normaliseRows,prepare,scoreProfile,COLUMNS,LABEL_SUSPECT,LABEL_CLEAR};
+return {parseCSV,normaliseRows,prepare,scoreProfile,COLUMNS,LABEL_SUSPECT,LABEL_CLEAR,LABEL_INSUFFICIENT};
 });

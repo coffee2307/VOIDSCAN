@@ -76,7 +76,7 @@ class ImportedCsvBrowser(unittest.TestCase):
     self.assertEqual(page.locator("#checked").inner_text(),"13")
     self.assertEqual(page.locator("#photos").inner_text(),"10")
     self.assertEqual(page.locator("#progress-number").inner_text(),"13 / 13 tài khoản")
-    self.assertEqual(page.locator(".queuebutton").count(),1)
+    self.assertEqual(page.locator(".queuebutton").count(),2) # 1 anomaly and 1 UNKNOWN for data-quality recheck
     self.assertIn("Nghi vấn",page.locator(".queuebutton").first.inner_text())
     self.assertEqual(page.locator("#progress-track").get_attribute("aria-valuenow"),"100")
     with page.expect_download(timeout=15000) as get_integrity:

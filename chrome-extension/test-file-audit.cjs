@@ -68,4 +68,14 @@ const csv=base.csv(csvRows,headerNames);
 assert(csv.startsWith("\ufeff"));
 assert(csv.includes("nghi vấn"));
 assert(csv.includes("không có dấu hiệu"));
+const onePhoto=Array.from({length:190},(_,i)=>({
+ photoId:pic(0),profileUrl:profile(i+1000),reaction:i<12?"UNKNOWN":"LIKE",
+ avatarUrl:"",displayName:"Người tham gia "+i
+}));
+const examined=f.prepare(onePhoto);
+const triage=examined.profiles.map(p=>f.scoreProfile(p,examined.photoTotal,{}));
+assert.equal(triage.filter(x=>x.status===f.LABEL_SUSPECT).length,0);
+assert.equal(triage.filter(x=>x.status===f.LABEL_INSUFFICIENT).length,190);
+assert.equal(triage.filter(x=>x.needsReactionCheck).length,12);
+assert(triage.every(x=>x.avatarEvidence==="unknown"));
 console.log("VOIDSCAN imported-CSV triage and formatted Excel writer: PASS");

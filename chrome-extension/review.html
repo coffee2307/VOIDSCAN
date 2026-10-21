@@ -10,6 +10,7 @@
   <p>Nhập CSV → tự sàng lọc hồ sơ → xuất bảng kết quả</p></div>
   <div class="topactions">
     <button id="source-local">Lấy dữ liệu từ tiện ích</button>
+    <button id="fetch-public-profiles" type="button">Thử metadata công khai · 10 hồ sơ</button>
     <button id="csvall" type="button">Xuất CSV kết quả</button>
     <button id="export-integrity" type="button">Xuất CSV đối soát ảnh</button>
     <button id="xlsxall" type="button" class="primary">Xuất Excel đẹp (.xlsx)</button>
@@ -39,7 +40,7 @@
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
       <label for="photo-scope" style="font-weight:700">Phạm vi phân tích:</label>
       <select id="photo-scope" style="min-width:290px;max-width:100%;width:auto"><option value="">Đang đọc Photo ID...</option></select>
-      <span id="scope-hint" class="small">Mặc định chỉ phân tích một ảnh. Chọn Tất cả ảnh để tổng hợp.</span>
+      <span id="scope-hint" class="small">Khi có nhiều ảnh, mặc định tổng hợp để phân tích hành vi nhiều ảnh.</span>
     </div>
     <div class="progress-heading">
       <span id="progress-title">Sẵn sàng phân tích CSV (không truy cập profile Facebook)</span><strong id="progress-number" aria-live="polite">0 / 0 tài khoản</strong>
@@ -50,16 +51,19 @@
   <section class="stats" aria-label="Kết quả sàng lọc">
     <div><small>Tổng tài khoản</small><strong id="total">0</strong></div>
     <div class="stat-red"><small>Nghi vấn · cần rà soát</small><strong id="flagged">0</strong></div>
-    <div class="stat-green"><small>Không có dấu hiệu</small><strong id="nosignal">0</strong></div>
+    <div class="stat-green"><small>Chưa thấy dấu hiệu (đã có dữ liệu)</small><strong id="nosignal">0</strong></div>
+    <div><small>Chưa đủ dữ liệu hồ sơ</small><strong id="insufficient">0</strong></div>
+    <div><small>Cần kiểm tra lại reaction</small><strong id="quality-review">0</strong></div>
     <div><small>Đã phân tích CSV</small><strong id="checked">0</strong></div>
     <div><small>Số ảnh trong file</small><strong id="photos">0</strong></div>
-    <div><small>Hồ sơ Facebook đã mở để kiểm tra</small><strong>0</strong></div>
+    <div><small>Hồ sơ đã ghi nhận từ trang mở</small><strong id="inspected-count">0</strong></div>
     <div><small>Phản ứng trùng trong tệp gốc</small><strong id="duplicate-rows">0</strong></div>
     <div><small>Loại phản ứng chưa rõ</small><strong id="unknown-rows">0</strong></div>
   </section>
+  <p id="metadata-status" class="small">Đọc metadata công khai là tùy chọn; không vượt trang đăng nhập, CAPTCHA hay giới hạn truy cập.</p>
   <p id="notice" class="notice">
   Hệ thống CHỈ phân tích thông tin có trong CSV, chưa kiểm tra nội dung trang cá nhân, bạn bè, nơi ở hoặc lịch sử hoạt động.
-  “Không có dấu hiệu” chỉ có nghĩa không thấy tín hiệu bất thường trong dữ liệu đã cung cấp; không phải xác nhận tài khoản thật.
+  Nếu chỉ có URL và reaction, trạng thái là “chưa đủ dữ liệu”. Lỗi nhãn reaction được đưa vào hàng đợi kiểm tra dữ liệu, không đánh đồng với tài khoản bot.
   </p>
   <section class="panel integrity-panel" aria-label="Đối soát số lượng reaction theo từng ảnh">
     <div class="section-title"><h2>Đối soát số lượng tương tác theo ảnh</h2><span class="small">Chỉ đếm URL hợp lệ, mỗi hồ sơ một lần trên mỗi ảnh</span></div>
@@ -71,14 +75,19 @@
       <div class="section-title"><h2>Danh sách tài khoản</h2><span id="listcount" class="muted">0 tài khoản</span></div>
       <div class="filters">
         <input id="search" type="search" placeholder="Tìm URL, username, ID" aria-label="Tìm tài khoản">
-        <select id="filter" aria-label="Lọc danh sách"><option value="flagged">Chỉ nghi vấn</option>
-          <option value="all">Tất cả</option><option value="clear">Không có dấu hiệu</option>
+        <select id="filter" aria-label="Lọc danh sách">
+          <option value="attention">Ưu tiên cần xử lý</option>
+          <option value="flagged">Nghi vấn hồ sơ</option>
+          <option value="quality">Lỗi dữ liệu reaction</option>
+          <option value="insufficient">Chưa đủ dữ liệu</option>
+          <option value="all">Tất cả</option>
+          <option value="clear">Chưa thấy dấu hiệu</option>
           <option value="checked">Đã duyệt thủ công</option></select>
       </div>
       <div class="queue" id="queue" role="listbox" aria-label="Tài khoản từ file CSV"></div>
     </section>
     <section class="panel detail">
-      <div id="empty"><h2>Chọn một tài khoản từ danh sách</h2><p>Dùng bộ lọc “Chỉ nghi vấn” để kiểm tra những URL đã được VOIDSCAN ưu tiên. Các trường hợp còn lại không cần bạn mở thủ công.</p></div>
+      <div id="empty"><h2>Chọn một tài khoản từ danh sách</h2><p>Ưu tiên hồ sơ có dấu hiệu từ dữ liệu quan sát được; các URL khác có thể chỉ đang thiếu dữ liệu, không được tự coi là sạch.</p></div>
       <section id="editor" hidden>
         <div class="detailhead"><div><small class="eyebrow">PROFILE AUDIT</small><h2 id="username">—</h2></div><span id="level" class="pill">Chưa phân loại</span></div>
         <div class="linkrow"><a id="profile-link" href="#" target="_blank" rel="noopener noreferrer">Mở hồ sơ Facebook ↗</a><button id="copy" type="button">Sao chép URL</button></div>
@@ -111,6 +120,7 @@
 <script src="lib.js"></script>
 <script src="file-audit.js"></script>
 <script src="profile-import.js"></script>
+<script src="public-metadata.js"></script>
 <script src="reaction-integrity.js"></script>
 <script src="xlsx-export.js"></script>
 <script src="review.js"></script>

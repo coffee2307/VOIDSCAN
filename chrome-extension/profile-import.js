@@ -14,13 +14,15 @@ function normalizeRow(raw){
   profileUrl:first("profileUrl","profileLink","url","urlTaiKhoan","facebookUrl"),
   userId:first("userId","id"),
   currentCity:first("currentCity","location","city","noiO","diaDiem"),
+  regionContext:first("regionContext"),
   avatarUrl:first("avatarUrl"), hasAvatar:first("hasAvatar"),
   bio:first("bio"),hasBio:first("hasBio"),
   work:first("work"),hasWork:first("hasWork"),
   education:first("education"),hasEducation:first("hasEducation"),
   hometown:first("hometown"),hasHometown:first("hasHometown"),
   category:first("category"),hasCategory:first("hasCategory"),
-  friendsCount:first("friendsCount"),followingCount:first("followingCount")
+  friendsCount:first("friendsCount"),followingCount:first("followingCount"),
+  source:first("source","profileDataSource")
  };
 }
 function region(v){
@@ -37,11 +39,11 @@ function flag(raw,yes){
 function observe(c){
  const url=lib.profileMeta(c.profileUrl||( /^\d{5,30}$/.test(c.userId)?"https://www.facebook.com/profile.php?id="+c.userId:""));
  if(!url)return null;
- const city=region(c.currentCity);
+ const city=["local","other"].includes(c.regionContext)?c.regionContext:region(c.currentCity);
  const avatar=flag(c.hasAvatar,Boolean(c.avatarUrl));
  const result={
   profileUrl:url.profileUrl,userId:url.userId,regionContext:city,
-  profileDataSource:"uploaded_profile_csv",hasAvatar:avatar,
+  profileDataSource:["observed_open_profile","public_metadata"].includes(c.source)?c.source:"uploaded_profile_csv",hasAvatar:avatar,
   avatarEvidence:avatar==="1"?"present":avatar==="0"?"absent_observed":"unknown",
   locationEvidence:city==="unknown"?"unknown":"declared_in_source",
   hasCurrentCity:city==="unknown"?"":"1",

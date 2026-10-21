@@ -1,12 +1,13 @@
 (() => {
 "use strict";
 const $=id=>document.getElementById(id);
-const FILE=window.VoidscanFileAudit,LIB=window.VoidscanAudit, XLSX=window.VoidscanXlsx,INTEGRITY=window.VoidscanIntegrity,PROFILE=window.VoidscanProfileImport;
+const FILE=window.VoidscanFileAudit,LIB=window.VoidscanAudit, XLSX=window.VoidscanXlsx,INTEGRITY=window.VoidscanIntegrity,PROFILE=window.VoidscanProfileImport,PUBLIC=window.VoidscanPublicMetadata;
 const STORAGE_REACTIONS="voidscan_reactions_v1",STORAGE_PENDING="voidscan_pending_reactions_v1";
-const STORAGE_DECISIONS="voidscan_screening_reviews_v1",STORAGE_COUNTS="voidscan_visible_reaction_counts_v2",MAX_CSV_BYTES=15*1024*1024;
+const STORAGE_DECISIONS="voidscan_screening_reviews_v1",STORAGE_COUNTS="voidscan_visible_reaction_counts_v2",PROFILE_STORE="voidscan_profile_observations_v1",MAX_CSV_BYTES=15*1024*1024;
 let scanToken=0,source=[],allSource=[],sourceOrigin="",profiles=[],results=[],byUrl=new Map(),chosen="",decisionMap={};
 let sourceLabel="Dữ liệu trong Chrome",integrityReport=null,profileSource=[];
-let currentProgress={done:0,total:0,flagged:0,clear:0};
+let metadataBusy=false,metadataStop=false;const ATTEMPT_STORE="voidscan_public_metadata_attempts_v1";
+let currentProgress={done:0,total:0,flagged:0,clear:0,insufficient:0,quality:0};
 const fmt=n=>Number(n||0).toLocaleString("vi-VN");
 const msg=text=>{$("toast").textContent=text;};
 const busy=flag=>{
@@ -27,6 +28,8 @@ function updateCounter(){
  $("total").textContent=fmt(currentProgress.total);
  $("flagged").textContent=fmt(currentProgress.flagged);
  $("nosignal").textContent=fmt(currentProgress.clear);
+ $("insufficient").textContent=fmt(currentProgress.insufficient);
+ $("quality-review").textContent=fmt(currentProgress.quality);
  $("checked").textContent=fmt(currentProgress.done);
  $("progress-number").textContent=fmt(currentProgress.done)+" / "+fmt(currentProgress.total)+" tài khoản";
  const pc=currentProgress.total?Math.round(currentProgress.done/currentProgress.total*100):0;
@@ -36,7 +39,10 @@ function updateCounter(){
 function listFiltered(){
  const q=$("search").value.trim().toLowerCase(),mode=$("filter").value;
  return results.filter(p=>{
+  if(mode==="attention"&&p.status!==FILE.LABEL_SUSPECT&&!p.needsReactionCheck)return false;
   if(mode==="flagged"&&p.status!==FILE.LABEL_SUSPECT)return false;
+  if(mode==="quality"&&!p.needsReactionCheck)return false;
+  if(mode==="insufficient"&&p.status!==FILE.LABEL_INSUFFICIENT)return false;
   if(mode==="clear"&&p.status!==FILE.LABEL_CLEAR)return false;
   if(mode==="checked"&&p.reviewerStatus==="unreviewed")return false;
   return !q||[p.profileUrl,p.username,p.userId].some(v=>String(v||"").toLowerCase().includes(q));
@@ -56,7 +62,9 @@ function drawQueue(){
   const item=document.createElement("button");item.type="button";item.className="queuebutton"+
    (chosen===p.profileUrl?" selected":"");
   item.append(safeText("strong",p.username||p.userId||p.profileUrl));
-  item.append(safeText("small",(p.status===FILE.LABEL_SUSPECT?"● Nghi vấn":"● Không có dấu hiệu")+
+  item.append(safeText("small",(p.status===FILE.LABEL_SUSPECT?"● Nghi vấn":
+    p.status===FILE.LABEL_INSUFFICIENT?"● Chưa đủ dữ liệu":"● Chưa thấy dấu hiệu")+
+    (p.needsReactionCheck?" · Cần kiểm tra reaction":"")+
     " · "+fmt(p.photoCount)+" ảnh · "+words[p.reviewerStatus]));
   item.addEventListener("click",()=>select(p.profileUrl));
   q.append(item);
@@ -70,7 +78,8 @@ function select(url,redraw=true){
  $("profile-link").href=p.profileUrl;
  $("profile-link").textContent=p.profileUrl+" ↗";
  $("level").textContent=p.status;
- $("level").className="pill "+(p.status===FILE.LABEL_SUSPECT?"suspect":"clear");
+ $("level").className="pill "+(p.status===FILE.LABEL_SUSPECT?"suspect":
+   p.status===FILE.LABEL_INSUFFICIENT?"inconclusive":"clear");
  $("nphotos").textContent=fmt(p.photoCount);
  $("nunknown").textContent=fmt(p.unknownRows);
  $("nfields").textContent=fmt(p.availableInfoPoints)+"/6";
@@ -80,6 +89,7 @@ function select(url,redraw=true){
    p.regionContext==="other"?"Địa điểm ngoài khu vực":"Chưa thu thập";
  $("profile-evidence-source").textContent=p.profileDataSource==="uploaded_profile_csv"?"CSV hồ sơ nhập":"Không có";
  $("reasons").replaceChildren(safeText("p",p.evidence));
+ if(p.dataQuality)$("reasons").append(safeText("p","Chất lượng dữ liệu (không phải bằng chứng bot): "+p.dataQuality,"small"));
  $("decision").value=p.reviewerStatus;
  $("notes").value=p.reviewNotes||"";
  if(redraw)drawQueue();
@@ -136,7 +146,8 @@ async function scan(data,origin){
   const observedAvatar=profiles.filter(p=>["present","absent_observed"].includes(p.avatarEvidence)).length;
   const observedLocality=profiles.filter(p=>["local","other"].includes(p.regionContext)).length;
   const historyProfiles=profiles.filter(p=>p.photoIds.size>=2).length;
-  currentProgress={total:profiles.length,done:0,flagged:0,clear:0};
+  currentProgress={total:profiles.length,done:0,flagged:0,clear:0,insufficient:0,quality:0};
+  $("inspected-count").textContent=fmt(profiles.filter(p=>p.profileDataSource==="observed_open_profile").length);
   $("photos").textContent=fmt(prepared.photoTotal);
   updateCounter();
   $("notice").textContent="PHẠM VI: "+($("photo-scope").value==="all"?"TẤT CẢ ẢNH":("CHỈ ẢNH "+$("photo-scope").value))+
@@ -161,7 +172,9 @@ async function scan(data,origin){
    results.push(row);byUrl.set(row.profileUrl,row);
    currentProgress.done++;
    if(row.status===FILE.LABEL_SUSPECT)currentProgress.flagged++;
+   else if(row.status===FILE.LABEL_INSUFFICIENT)currentProgress.insufficient++;
    else currentProgress.clear++;
+   if(row.needsReactionCheck)currentProgress.quality++;
    updateCounter();
    setLast(row);
    // Yield regularly so Chrome paints counters and n/n progress mid-scan.
@@ -171,8 +184,11 @@ async function scan(data,origin){
   $("progress-title").textContent="Hoàn tất phân tích CSV (chưa xác minh profile)";
   drawQueue();
   msg("Hoàn thành "+fmt(currentProgress.done)+" URL trong CSV của phạm vi đã chọn. "+
-   fmt(currentProgress.flagged)+" có tín hiệu cần rà soát; "+fmt(currentProgress.clear)+
-   " chưa thấy tín hiệu trong CSV. Số hồ sơ Facebook thực sự được mở/kiểm tra: 0.");
+   fmt(currentProgress.flagged)+" có tín hiệu hồ sơ; "+
+   fmt(currentProgress.quality)+" cần kiểm tra lại loại reaction; "+
+   fmt(currentProgress.insufficient)+" chưa đủ dữ liệu; "+
+   fmt(currentProgress.clear)+" chưa thấy tín hiệu khi đã có dữ liệu. "+
+   "Đã có quan sát từ trang mở: "+$("inspected-count").textContent+".");
  }catch(e){
    $("progress-title").textContent="Lỗi phân tích";
    msg("Không thể phân tích: "+(e.message||"lỗi không xác định"));
@@ -200,13 +216,62 @@ async function scanScope(){
    "Chỉ phân tích ảnh "+photo+"; các ảnh còn lại không bị cộng vào.";
  const valid=FILE.normaliseRows(allSource).rows;
  const scoped=photo==="all"?valid:LIB.scopedRows(valid,photo);
- const match=PROFILE.enrich(scoped,profileSource);
+ const saved=await chrome.storage.local.get(PROFILE_STORE);
+ const observations=Object.values(saved[PROFILE_STORE]||{});
+ const match=PROFILE.enrich(scoped,[...observations,...profileSource]);
  $("profile-source").textContent=profileSource.length?
    "Đã nạp "+fmt(profileSource.length)+" dòng hồ sơ; ghép "+fmt(match.matchedRows)+" dòng reaction trong phạm vi đang chọn":
    "Chưa có nguồn hồ sơ · không suy từ cột thiếu.";
  await scan(match.rows,sourceOrigin+
   (photo==="all"?" · Tất cả ảnh":" · Ảnh "+photo)+
   (profileSource.length?" · có dữ liệu hồ sơ bổ sung":""));
+}
+async function fetchPublicBatch(){
+ if(metadataBusy||!PUBLIC||!results.length)return;
+ if(!chrome.permissions?.request){msg("Trình duyệt không hỗ trợ quyền metadata tùy chọn.");return;}
+ const approved=await chrome.permissions.request({origins:["https://www.facebook.com/*"]});
+ if(!approved){msg("Bạn đã từ chối quyền đọc metadata công khai.");return;}
+ metadataBusy=true;metadataStop=false;
+ const button=$("fetch-public-profiles");
+ button.disabled=true;
+ const saved=await chrome.storage.local.get([PROFILE_STORE,ATTEMPT_STORE]);
+ const profilesMap=saved[PROFILE_STORE]||{},attempts=saved[ATTEMPT_STORE]||{};
+ const now=Date.now(),eligible=results.filter(r=>{
+   const checked=attempts[r.profileUrl];
+   return !profilesMap[r.profileUrl]&&(!checked||now-new Date(checked.at).getTime()>86400000);
+ }).slice(0,10);
+ let accessed=0,matched=0,failed=0,halt="";
+ try{
+  for(let i=0;i<eligible.length&&!metadataStop;i++){
+   const row=eligible[i];
+   $("metadata-status").textContent="Đang đọc metadata công khai "+(i+1)+"/"+eligible.length+" — "+row.profileUrl;
+   const result=await PUBLIC.get(row.profileUrl);
+   attempts[row.profileUrl]={at:new Date().toISOString(),status:result.access};
+   if(result.access==="rate_limited"||result.access==="restricted"){
+    halt="Facebook yêu cầu xác minh hoặc hạn chế truy cập. Đã dừng; không thử vượt chặn.";
+    break;
+   }
+   accessed++;
+   if(result.access==="public_metadata"&&(result.region!=="unknown"||result.hasBio===true)){
+    profilesMap[row.profileUrl]={
+      profileUrl:row.profileUrl,source:"public_metadata",observedAt:new Date().toISOString(),
+      regionContext:result.region,
+      hasBio:result.hasBio===true?"1":""
+    };
+    matched++;
+   }else failed++;
+   if(i<eligible.length-1)await sleep(1600);
+  }
+  await chrome.storage.local.set({[PROFILE_STORE]:profilesMap,[ATTEMPT_STORE]:attempts});
+  const report="Đã thử "+accessed+" hồ sơ, có "+matched+
+   " hồ sơ với metadata sử dụng được, "+failed+" không đủ thông tin. "+
+   (halt||"Nhấn lại để thử nhóm tiếp theo (tối đa 10 hồ sơ/lượt).");
+  $("metadata-status").textContent=report;
+  msg(report);
+  if(allSource.length)await scanScope();
+ }catch(e){
+  msg("Lỗi đọc metadata công khai: "+e.message);
+ }finally{metadataBusy=false;button.disabled=false;}
 }
 async function loadFromChrome(){
  const saved=await chrome.storage.local.get([STORAGE_REACTIONS,STORAGE_PENDING]);
@@ -295,10 +360,11 @@ async function saveReview(){
  const p=byUrl.get(chosen);
  p.reviewerStatus=status;p.reviewNotes=notes;
  if(status==="needs_review"&&p.status!==FILE.LABEL_SUSPECT){
-   // Human disagreement triggers manual-review label, with explanation.
+   if(p.status===FILE.LABEL_INSUFFICIENT)currentProgress.insufficient--;
+   else currentProgress.clear--;
    p.status=FILE.LABEL_SUSPECT;
    p.evidence+=" | Được người duyệt đánh dấu cần xem kỹ hơn";
-   currentProgress.flagged++;currentProgress.clear--;
+   currentProgress.flagged++;
    updateCounter();
  }
  drawQueue();msg("Đã lưu đánh giá của người kiểm tra. Không tự loại phiếu.");
@@ -309,6 +375,11 @@ function nextProfile(){
  if(ix>=0&&ix<queue.length-1)select(queue[ix+1].profileUrl);
  else msg("Đã đến cuối danh sách trong bộ lọc hiện tại.");
 }
+chrome.storage.onChanged?.addListener((changes,area)=>{
+ if(area==="local"&&changes[PROFILE_STORE]&&allSource.length)
+   scanScope().catch(e=>msg("Không cập nhật được dữ liệu hồ sơ: "+e.message));
+});
+$("fetch-public-profiles").addEventListener("click",()=>fetchPublicBatch().catch(e=>msg("Lỗi truy xuất: "+e.message)));
 $("source-local").addEventListener("click",()=>loadFromChrome().catch(e=>msg("Lỗi đọc dữ liệu Chrome: "+e.message)));
 $("photo-scope").addEventListener("change",()=>scanScope().catch(e=>msg("Lỗi thay đổi phạm vi ảnh: "+e.message)));
 $("profile-upload").addEventListener("change",e=>{

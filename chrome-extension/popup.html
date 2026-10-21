@@ -16,7 +16,10 @@
     <p class="hint" id="scope-note">Mặc định xem ảnh hiện tại. Chọn “Tất cả ảnh” chỉ khi cần tổng hợp.</p>
     <button id="activate" class="primary">Mở bảng điều khiển kéo thả trên Facebook</button>
     <button id="screening" class="primary" style="margin-top:9px;background:#243f79;color:#fff">Xem hồ sơ cần rà soát →</button>
-    <div class="screening-count">Ưu tiên kiểm tra: <strong id="screening-flagged">0</strong> / <span id="screening-total">0</span> hồ sơ đã phân loại. <span id="pending-label">Chưa rõ cảm xúc: <strong id="pending-count">0</strong></span></div>
+    <button id="capture-profile" class="secondary" style="margin-top:9px;width:100%">Ghi nhận hồ sơ Facebook đang mở</button>
+    <div class="screening-count">Nghi vấn từ tín hiệu có sẵn: <strong id="screening-flagged">0</strong> / <span id="screening-total">0</span> hồ sơ.
+      <span>Chưa đủ dữ liệu: <strong id="screening-insufficient">0</strong>.</span>
+      <span id="pending-label">Cần kiểm tra reaction: <strong id="pending-count">0</strong>.</span></div>
     <p class="hint">Quét reaction từng ảnh như bình thường. VOIDSCAN sẽ <b>tự sàng lọc danh sách đã lưu</b>, chỉ hiển thị các URL cần bạn đối chiếu trong trang kiểm toán. Không tự nhận diện hoặc xác nhận bot.</p>
     <div class="actions">
       <button id="csv">Xuất danh sách CSV</button><button id="summary">Xuất tổng hợp CSV</button>
@@ -34,5 +37,5 @@
   <p id="status" role="status">Sẵn sàng.</p>
   <p class="footnote">Dữ liệu lưu cục bộ, không dùng token Meta hoặc lấy cookie. Không gán nhãn bot chỉ từ hồ sơ cá nhân.</p>
 </main>
-<script src="lib.js"></script><script src="review-lib.js"></script><script src="popup.js"></script>
+<script src="lib.js"></script><script src="review-lib.js"></script><script src="file-audit.js"></script><script src="profile-import.js"></script><script src="popup.js"></script>
 </body></html>

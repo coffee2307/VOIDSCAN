@@ -5,6 +5,7 @@ const STORE="voidscan_reactions_v1", PHOTO_STORE="voidscan_photo_links_v1";
 const COUNT_STORE="voidscan_visible_reaction_counts_v2";
 const PENDING_STORE="voidscan_pending_reactions_v1";
 const ACTIVE_PHOTO_STORE="voidscan_active_photo_v1";
+const PROFILE_STORE="voidscan_profile_observations_v1",ATTEMPT_STORE="voidscan_public_metadata_attempts_v1";
 let manualScope=null;
 const api=window.VoidscanAudit;
 function status(s){$("status").textContent=s;}
@@ -35,11 +36,13 @@ async function refresh(){
  $("scope-note").textContent=scope==="all"?
   "Đang xem TẤT CẢ ảnh. Dữ liệu sẽ cộng gộp; chọn từng ảnh để xuất riêng.":
   "Chỉ đang xem và xuất dữ liệu của ảnh "+scope+"; các ảnh khác được giữ nguyên, không gộp.";
- const review=window.VoidscanReview;
- if(review){const result=review.analyse(scoped,{});const stats=review.summary(result);
-   $("screening-flagged").textContent=(stats.reviewFirst+stats.review).toLocaleString("vi-VN");
-   $("screening-total").textContent=stats.total.toLocaleString("vi-VN");
- }
+ const rawProfiles=(await chrome.storage.local.get(PROFILE_STORE))[PROFILE_STORE]||{};
+ const reviewed=window.VoidscanProfileImport.enrich([...scoped,...unknown],Object.values(rawProfiles)).rows;
+ const analysis=window.VoidscanFileAudit.prepare(reviewed);
+ const scores=analysis.profiles.map(p=>window.VoidscanFileAudit.scoreProfile(p,analysis.photoTotal,{}));
+ $("screening-flagged").textContent=scores.filter(x=>x.status===window.VoidscanFileAudit.LABEL_SUSPECT).length.toLocaleString("vi-VN");
+ $("screening-insufficient").textContent=scores.filter(x=>x.status===window.VoidscanFileAudit.LABEL_INSUFFICIENT).length.toLocaleString("vi-VN");
+ $("screening-total").textContent=scores.length.toLocaleString("vi-VN");
 }
 async function download(name,data,type){
  const blob=new Blob([data],{type});
@@ -55,6 +58,23 @@ async function activate(){
  if(!tab||!api.fbUrl(tab.url)){status("Bạn cần mở tab Facebook trước.");return;}
  await chrome.scripting.executeScript({target:{tabId:tab.id},files:["lib.js","content.js"]});
  status("Đã mở bảng kéo thả trên Facebook. Có nút Home và CSV ngay trong bảng.");
+}
+async function captureCurrentProfile(){
+ const [tab]=await chrome.tabs.query({active:true,currentWindow:true});
+ if(!tab?.id||!api.profileMeta(tab.url||"")){
+   status("Hãy mở trang cá nhân Facebook cần kiểm tra, rồi nhấn nút này.");
+   return;
+ }
+ await chrome.scripting.executeScript({target:{tabId:tab.id},files:["lib.js","profile-capture.js"]});
+ const value=await chrome.scripting.executeScript({
+   target:{tabId:tab.id},func:()=>window.VoidscanCaptureCurrentProfile()
+ });
+ const response=value?.[0]?.result||{};
+ status(response.saved?
+   "Đã lưu quan sát trên hồ sơ đang mở: avatar "+(response.hasAvatar?"có":"chưa rõ")+
+   "; địa điểm "+(response.hasCurrentCity?"có":"chưa rõ")+
+   ". Mở lại trang kiểm toán để cập nhật.":
+   response.reason||"Trang Facebook chưa có dữ liệu công khai đọc được.");
 }
 async function exportPhotos(){
  const result=await chrome.storage.local.get(PHOTO_STORE);
@@ -113,6 +133,7 @@ $("screening").addEventListener("click",async()=>{
  try{await chrome.tabs.create({url:chrome.runtime.getURL("review.html")});}
  catch{status("Không mở được trang sàng lọc.");}
 });
+$("capture-profile").addEventListener("click",()=>captureCurrentProfile().catch(e=>status("Không ghi nhận được hồ sơ: "+e.message)));
 $("details").addEventListener("click",()=>{$("home-view").hidden=true;$("fields-view").hidden=false;});
 $("back").addEventListener("click",home);
 $("activate").addEventListener("click",()=>activate().catch(()=>status("Không mở được bảng thu thập. Tải lại tab Facebook.")));
@@ -121,13 +142,13 @@ for(const type of ["csv","summary","json"]){
 }
 $("photo-links").addEventListener("click",()=>exportPhotos().catch(()=>status("Không xuất được danh sách ảnh.")));
 $("clear").addEventListener("click",async()=>{
- if(!confirm("Xóa toàn bộ dữ liệu reaction, số hiển thị và link ảnh trên Chrome?"))return;
- await chrome.storage.local.remove([STORE,PHOTO_STORE,COUNT_STORE,PENDING_STORE]);
+ if(!confirm("Xóa toàn bộ dữ liệu reaction, link ảnh và hồ sơ đã ghi nhận trên Chrome?"))return;
+ await chrome.storage.local.remove([STORE,PHOTO_STORE,COUNT_STORE,PENDING_STORE,PROFILE_STORE,ATTEMPT_STORE]);
  await refresh();
  status("Đã xóa dữ liệu cục bộ.");
 });
 chrome.storage.onChanged.addListener((changes,area)=>{
- if(area==="local"&&(changes[STORE]||changes[PENDING_STORE]||changes[ACTIVE_PHOTO_STORE]))refresh().catch(()=>{});
+ if(area==="local"&&(changes[STORE]||changes[PENDING_STORE]||changes[ACTIVE_PHOTO_STORE]||changes[PROFILE_STORE]))refresh().catch(()=>{});
 });
 refresh().catch(()=>status("Không đọc được dữ liệu cục bộ."));
 })();
