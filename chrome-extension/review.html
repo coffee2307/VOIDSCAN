@@ -12,6 +12,7 @@
     <button id="source-local">Lấy dữ liệu từ tiện ích</button>
     <button id="auto-start" type="button" class="primary">Bắt đầu Auto Audit toàn bộ</button>
     <button id="auto-pause" type="button" disabled>Tạm dừng</button>
+    <button id="auto-export" type="button">Xuất nhật ký Auto Audit</button>
     <button id="fetch-public-profiles" type="button">Thử metadata công khai · 10 hồ sơ</button>
     <button id="csvall" type="button">Xuất CSV kết quả</button>
     <button id="export-integrity" type="button">Xuất CSV đối soát ảnh</button>
@@ -55,6 +56,7 @@
     <div class="stat-red"><small>Nghi vấn · cần rà soát</small><strong id="flagged">0</strong></div>
     <div class="stat-green"><small>Chưa thấy dấu hiệu (đã có dữ liệu)</small><strong id="nosignal">0</strong></div>
     <div><small>Chưa đủ dữ liệu hồ sơ</small><strong id="insufficient">0</strong></div>
+    <div><small>Có dữ liệu bổ sung để kiểm tra</small><strong id="evidence-coverage">0 / 0</strong></div>
     <div><small>Cần kiểm tra lại reaction</small><strong id="quality-review">0</strong></div>
     <div><small>Đã phân tích CSV</small><strong id="checked">0</strong></div>
     <div><small>Số ảnh trong file</small><strong id="photos">0</strong></div>
@@ -70,6 +72,7 @@
       <div id="auto-bar" style="height:100%;width:0%;background:#5686d8"></div></div>
     <p class="small">Không sử dụng cookie phiên, không mở hồ sơ riêng tư, không vượt giới hạn truy cập. Hồ sơ không trả metadata sẽ ở trạng thái chưa đủ dữ liệu, không bị đánh dấu bot.</p>
   </section>
+  <p id="auto-diagnosis" class="notice">Chưa đánh giá độ bao phủ dữ liệu.</p>
   <p id="metadata-status" class="small">Đọc metadata công khai là tùy chọn; không vượt trang đăng nhập, CAPTCHA hay giới hạn truy cập.</p>
   <p id="notice" class="notice">
   Hệ thống CHỈ phân tích thông tin có trong CSV, chưa kiểm tra nội dung trang cá nhân, bạn bè, nơi ở hoặc lịch sử hoạt động.
@@ -140,6 +143,7 @@
 <script src="profile-import.js"></script>
 <script src="public-metadata.js"></script>
 <script src="auto-audit.js"></script>
+<script src="auto-coverage.js"></script>
 <script src="reaction-integrity.js"></script>
 <script src="xlsx-export.js"></script>
 <script src="review.js"></script>

@@ -1,4 +1,16 @@
-# VOIDSCAN Reaction Audit — Chrome Extension 0.6.0
+# VOIDSCAN Reaction Audit — Chrome Extension 0.6.1
+
+## 0.6.1 — Sửa kết quả 0 nghi vấn khi dữ liệu hồ sơ chưa được thu thập
+
+- Khi chỉ nhập CSV reaction 369 URL của một ảnh, 369 hồ sơ vẫn là CHƯA ĐỦ DỮ LIỆU. Không ép phân loại nghi vấn chỉ vì URL, ID số, trùng tên hoặc reaction UNKNOWN.
+- Hiện rõ độ bao phủ có dữ liệu bổ sung (x/369), cảnh báo 0% và giải thích rằng đọc CSV không phải kiểm tra trực tiếp tài khoản Facebook.
+- Bảng Auto Audit phân biệt URL chưa thử, HTTP không có metadata, HTML thiếu thông tin, lỗi mạng, bị từ chối/rate limit và URL đã có dữ liệu sử dụng được.
+- Nút Xuất nhật ký Auto Audit tạo CSV theo URL gồm trạng thái truy xuất và thời điểm thử, phục vụ chẩn đoán tại sao chưa có hồ sơ nào được phân loại. Không lấy thêm dữ liệu cá nhân.
+- Tự cập nhật chẩn đoán sau khi nhập CSV, sau các nhóm truy xuất và sau khi tải lại trang.
+- Không gán nhãn bot khi nguồn dữ liệu không có tín hiệu cần thiết; độ bao phủ cần được cải thiện bằng nguồn dữ liệu có quyền truy cập hợp lệ, không phải hạ ngưỡng tùy tiện.
+- Kiểm thử: node chrome-extension/test-auto-coverage.cjs, python tests/auto_audit_browser_smoke.py.
+
+
 
 ## 0.6.0 — Auto Audit một lần bấm cho toàn bộ danh sách CSV
 

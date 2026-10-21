@@ -1,7 +1,7 @@
 (() => {
 "use strict";
 const $=id=>document.getElementById(id);
-const FILE=window.VoidscanFileAudit,LIB=window.VoidscanAudit, XLSX=window.VoidscanXlsx,INTEGRITY=window.VoidscanIntegrity,PROFILE=window.VoidscanProfileImport,PUBLIC=window.VoidscanPublicMetadata,AUTO=window.VoidscanAutoAudit;
+const FILE=window.VoidscanFileAudit,LIB=window.VoidscanAudit, XLSX=window.VoidscanXlsx,INTEGRITY=window.VoidscanIntegrity,PROFILE=window.VoidscanProfileImport,PUBLIC=window.VoidscanPublicMetadata,AUTO=window.VoidscanAutoAudit,COVERAGE=window.VoidscanCoverage;
 const STORAGE_REACTIONS="voidscan_reactions_v1",STORAGE_PENDING="voidscan_pending_reactions_v1";
 const STORAGE_DECISIONS="voidscan_screening_reviews_v1",STORAGE_COUNTS="voidscan_visible_reaction_counts_v2",PROFILE_STORE="voidscan_profile_observations_v1",MAX_CSV_BYTES=15*1024*1024;
 let scanToken=0,source=[],allSource=[],sourceOrigin="",profiles=[],results=[],byUrl=new Map(),chosen="",decisionMap={};
@@ -189,6 +189,17 @@ async function scan(data,origin){
   }
   if(ticket!==scanToken)return;
   $("progress-title").textContent="Hoàn tất phân tích CSV (chưa xác minh profile)";
+  const supplied=results.filter(p=>p.evidenceQuality==="profile_observed").length;
+  $("evidence-coverage").textContent=fmt(supplied)+" / "+fmt(results.length);
+  $("auto-diagnosis").textContent=supplied===0&&results.length?
+    "CẢNH BÁO DỮ LIỆU: 0/"+fmt(results.length)+
+    " hồ sơ có trường bổ sung để đánh giá. "+
+    fmt(currentProgress.insufficient)+" hồ sơ đang CHƯA ĐỦ DỮ LIỆU, không phải "+
+    fmt(currentProgress.insufficient)+" tài khoản bình thường. "+
+    fmt(currentProgress.quality)+" hồ sơ có reaction cần kiểm tra lại. "+
+    "Auto Audit thử metadata công khai không đồng nghĩa đã xem hoạt động của hồ sơ.":
+    "Đã có trường bổ sung để đánh giá "+fmt(supplied)+"/"+fmt(results.length)+
+    " hồ sơ; những hồ sơ còn thiếu dữ liệu vẫn cần đối chiếu.";
   drawQueue();
   msg("Hoàn thành "+fmt(currentProgress.done)+" URL trong CSV của phạm vi đã chọn. "+
    fmt(currentProgress.flagged)+" có tín hiệu hồ sơ; "+
@@ -215,6 +226,7 @@ async function useSource(data,origin){
  const chosen=options.length>1?"all":(options.some(p=>p.photoId===active)?active:(options.at(-1)?.photoId||"all"));
  select.value=chosen;
  await scanScope();
+ await showCoverageReport();
 }
 async function scanScope(){
  const photo=$("photo-scope").value;
@@ -232,6 +244,39 @@ async function scanScope(){
  await scan(match.rows,sourceOrigin+
   (photo==="all"?" · Tất cả ảnh":" · Ảnh "+photo)+
   (profileSource.length?" · có dữ liệu hồ sơ bổ sung":""));
+}
+async function showCoverageReport(){
+ if(!COVERAGE)return;
+ const saved=await chrome.storage.local.get([AUTO_STORE,PROFILE_STORE,ATTEMPT_STORE]);
+ const state=saved[AUTO_STORE]||{};
+ const urls=allSource.length?AUTO.plan(FILE.normaliseRows(allSource).rows):state.urls||[];
+ const summary=COVERAGE.assess(urls,saved[ATTEMPT_STORE]||{},saved[PROFILE_STORE]||{});
+ const {counters:c,outcomes}=summary;
+ $("metadata-status").textContent="Tiến độ truy xuất metadata: "+fmt(summary.attemptedTotal)+
+   " URL đã thử · "+fmt(c.withEvidence)+" có dữ liệu bổ sung · "+fmt(c.unattempted)+
+   " chưa thử · "+fmt(c.denied)+" bị từ chối/giới hạn · "+
+   fmt(c.errors)+" lỗi truy cập · "+fmt(c.missingFields)+" HTML thiếu trường dùng được."+
+   " Chi tiết: "+Object.entries(outcomes).map(([k,v])=>k+": "+fmt(v)).join("; ");
+}
+function exportAutoLog(){
+ if(!COVERAGE){msg("Không có mô-đun nhật ký.");return;}
+ chrome.storage.local.get([AUTO_STORE,PROFILE_STORE,ATTEMPT_STORE]).then(saved=>{
+   const state=saved[AUTO_STORE]||{},urls=allSource.length?
+      AUTO.plan(FILE.normaliseRows(allSource).rows):state.urls||[];
+   const report=COVERAGE.assess(urls,saved[ATTEMPT_STORE]||{},saved[PROFILE_STORE]||{});
+   if(!report.rows.length){msg("Chưa có danh sách để xuất nhật ký.");return;}
+   const headers=["URL hồ sơ","Trạng thái truy xuất","Thời điểm thử","Có dữ liệu hồ sơ"];
+   const rows=report.rows.map(r=>({
+     "URL hồ sơ":r.profileUrl,"Trạng thái truy xuất":r.status,
+     "Thời điểm thử":r.attemptedAt,"Có dữ liệu hồ sơ":r.hasUsableEvidence?"Có":"Không"
+   }));
+   const blob=new Blob([LIB.csv(rows,headers)],{type:"text/csv;charset=utf-8"});
+   const link=URL.createObjectURL(blob),a=document.createElement("a");
+   a.href=link;a.download="VOIDSCAN_AUTO_AUDIT_NHAT_KY.csv";
+   document.body.append(a);a.click();a.remove();
+   setTimeout(()=>URL.revokeObjectURL(link),30000);
+   msg("Đã xuất nhật ký "+fmt(report.rows.length)+" URL; không ghi dữ liệu liên hệ.");
+ }).catch(e=>msg("Không xuất được nhật ký: "+e.message));
 }
 function showAutoProgress(state){
  const s=state||{};
@@ -257,6 +302,8 @@ async function persistAuto(queue,profilesMap,attempts){
  // Save progress after every URL so pauses and tab reloads lose at most the current request.
  await chrome.storage.local.set({[AUTO_STORE]:queue,[PROFILE_STORE]:profilesMap,[ATTEMPT_STORE]:attempts});
  showAutoProgress(queue);
+ if(queue.index%10===0||queue.status!=="running")
+   await showCoverageReport();
 }
 async function startAutoAudit(){
  if(autoBusy)return;
@@ -340,6 +387,7 @@ async function refreshAutoState(){
    await chrome.storage.local.set({[AUTO_STORE]:stored});
  }
  if(!autoBusy)showAutoProgress(stored);
+ await showCoverageReport();
 }
 async function fetchPublicBatch(){
  if(autoBusy){msg("Auto Audit đang chạy; hãy tạm dừng trước khi dùng công cụ thử 10 hồ sơ.");return;}
@@ -534,6 +582,7 @@ chrome.storage.onChanged?.addListener((changes,area)=>{
 });
 $("auto-start").addEventListener("click",()=>startAutoAudit().catch(e=>msg("Auto Audit không chạy: "+e.message)));
 $("auto-pause").addEventListener("click",pauseAutoAudit);
+$("auto-export").addEventListener("click",exportAutoLog);
 $("fetch-public-profiles").addEventListener("click",()=>fetchPublicBatch().catch(e=>msg("Lỗi truy xuất: "+e.message)));
 $("source-local").addEventListener("click",()=>loadFromChrome().catch(e=>msg("Lỗi đọc dữ liệu Chrome: "+e.message)));
 $("photo-scope").addEventListener("change",()=>scanScope().catch(e=>msg("Lỗi thay đổi phạm vi ảnh: "+e.message)));

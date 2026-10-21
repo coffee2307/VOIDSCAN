@@ -21,11 +21,11 @@ MOCK="""() => {
 with sync_playwright() as pw:
  browser=pw.chromium.launch(channel="chrome",headless=True)
  try:
-  page=browser.new_page()
+  page=browser.new_page(accept_downloads=True)
   page.set_content((EXT/"review.html").read_text(encoding="utf-8"))
   page.evaluate(MOCK)
   for name in ["lib.js","file-audit.js","profile-import.js","public-metadata.js",
-               "auto-audit.js","reaction-integrity.js","xlsx-export.js","review.js"]:
+               "auto-audit.js","auto-coverage.js","reaction-integrity.js","xlsx-export.js","review.js"]:
    page.add_script_tag(path=str(EXT/name))
   page.evaluate("""() => {
     window.VoidscanAutoAudit.WAIT_MS=0;
@@ -45,6 +45,13 @@ with sync_playwright() as pw:
   assert page.evaluate("window.__tested")==4
   page.wait_for_function('document.getElementById("insufficient").textContent==="0"',timeout=15000)
   assert page.locator("#auto-progress").inner_text().startswith("4/4 URL")
+  assert page.locator("#evidence-coverage").inner_text()=="4 / 4"
+  assert "4 URL đã thử" in page.locator("#metadata-status").inner_text()
+  with page.expect_download(timeout=15000) as exported:
+   page.locator("#auto-export").click()
+  txt=exported.value.path().read_text(encoding="utf-8-sig")
+  assert txt.count("https://www.facebook.com/profile.php?id=")==4
+  assert "with_evidence" in txt
   # Resuming completed queues is intentionally a new pass; existing metadata means no new requests.
   page.locator("#auto-start").click()
   page.wait_for_function('document.getElementById("auto-state").textContent==="Hoàn thành"',timeout=20000)
