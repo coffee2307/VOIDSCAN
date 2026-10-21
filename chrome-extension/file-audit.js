@@ -106,12 +106,18 @@ function prepare(raw){
    if(!item){
      item={profileUrl:r.profileUrl,userId:r.userId,username:r.username,
        displayName:String(r.displayName||"").trim(),nameCollisionPhotos:new Set(),
+       avatarEvidence:"unknown",regionContext:"unknown",profileDataSource:"",
        photoIds:new Set(),reactions:new Set(),perPhoto:new Map(),
        fields:new Set(),profileFlagsObserved:new Set(),friendsCount:null,followingCount:null,
        rawRows:0,unknownRows:0,sourceRows:[]};
      profiles.set(r.profileUrl,item);
    }
    if(!item.displayName&&r.displayName)item.displayName=String(r.displayName).trim();
+   if(r.avatarEvidence==="present"||r.avatarEvidence==="absent_observed")
+      item.avatarEvidence=r.avatarEvidence;
+   else if(r.avatarUrl&&!item.avatarEvidence?.startsWith("absent"))item.avatarEvidence="present";
+   if(r.regionContext==="local"||r.regionContext==="other")item.regionContext=r.regionContext;
+   if(r.profileDataSource)item.profileDataSource=r.profileDataSource;
    if(r.photoId)item.photoIds.add(r.photoId);
    if(r.reaction==="UNKNOWN")item.unknownRows++;
    else item.reactions.add(r.reaction);
@@ -157,8 +163,11 @@ function prepare(raw){
 }
 function scoreProfile(p,photoTotal,decision){
  const photoCount=p.photoIds.size, reasons=[];
- if(p.unknownRows>0)reasons.push("Có "+p.unknownRows+" reaction chưa xác định loại; cần xác minh lại dữ liệu, không phải bằng chứng bot");
- if(p.nameCollisionPhotos?.size>0)reasons.push("Tên hiển thị trùng trên "+p.nameCollisionPhotos.size+" ảnh với URL hồ sơ khác; tín hiệu yếu, có thể trùng tên người thật");
+ const quality=[];
+ if(p.unknownRows>0)quality.push(p.unknownRows+" reaction UNKNOWN (lỗi nhãn của lần thu thập)");
+ if(p.nameCollisionPhotos?.size>0)quality.push("Có trùng tên hiển thị, KHÔNG phải tín hiệu bot");
+ if(p.avatarEvidence==="absent_observed")
+   reasons.push("Nguồn hồ sơ đã kiểm tra báo không thấy avatar; dấu hiệu yếu, cần đối chiếu");
  const conflicts=[...p.perPhoto].filter(([,set])=>set.size>1);
  if(conflicts.length)reasons.push("Nhiều loại reaction được ghi trên cùng ảnh; có thể do người dùng đổi cảm xúc giữa các lần xuất");
  if(photoTotal>=8&&photoCount>=Math.max(6,Math.ceil(photoTotal*.70)))
@@ -170,8 +179,13 @@ function scoreProfile(p,photoTotal,decision){
    reasons.push("CSV có ít nhất hai mục hồ sơ được kiểm tra là không có thông tin, kèm số bạn bè/theo dõi cao; cần đối chiếu trực tiếp, không tự kết luận bot");
  const previous=decision&&decision[p.profileUrl]||{};
  if(previous.status==="needs_review")reasons.push("Được người kiểm duyệt đánh dấu cần kiểm tra");
+ const localMatch=p.regionContext==="local";
+ if(localMatch&&previous.status!=="needs_review"&&conflicts.length===0)reasons.length=0;
  const suspected=reasons.length>0;
  return {profileUrl:p.profileUrl,userId:p.userId,username:p.username,displayName:p.displayName||"",
+   avatarEvidence:p.avatarEvidence||"unknown",regionContext:p.regionContext||"unknown",
+   profileDataSource:p.profileDataSource||"not_collected",dataQuality:quality.join(" | "),
+   localRuleApplied:localMatch&&!suspected?"Ưu tiên theo địa điểm tự khai; không xác minh danh tính":"",
    nameCollisionPhotoCount:p.nameCollisionPhotos?.size||0,
    photoCount,photoIds:[...p.photoIds].join(" | "),
    reactionTypes:[...p.reactions].join(" | "),reactionRows:p.rawRows,unknownRows:p.unknownRows,
@@ -179,9 +193,9 @@ function scoreProfile(p,photoTotal,decision){
    profileActuallyChecked:false,friendsCount:p.friendsCount??"",
    followingCount:p.followingCount??"",sourceRows:p.sourceRows.join(" | "),
    status:suspected?LABEL_SUSPECT:LABEL_CLEAR,
-   evidence:reasons.join(" | ")||(p.unknownRows>0?
-      "Một số reaction chưa rõ loại; không phát hiện dấu hiệu bất thường từ các trường hiện có":
-      "Chưa thấy tín hiệu bất thường trong dữ liệu CSV; không xác minh tài khoản thật"),
+   evidence:reasons.join(" | ")||(localMatch?
+      "Địa điểm tự khai khớp khu vực ưu tiên; CHƯA xác minh tài khoản thật":
+      "Chưa có tín hiệu hành vi/hồ sơ được quan sát đủ để đánh giá; không gắn nhãn nghi vấn"),
    reviewerStatus:previous.status||"unreviewed",
    reviewNotes:previous.notes||"",
    botConfirmed:"CHƯA_XÁC_MINH",
@@ -193,7 +207,12 @@ const COLUMNS=[
  {key:"username",label:"Username"},
  {key:"displayName",label:"Tên hiển thị"},
  {key:"status",label:"Trạng thái"},
- {key:"nameCollisionPhotoCount",label:"Ảnh có trùng tên hồ sơ"},
+ {key:"nameCollisionPhotoCount",label:"Ảnh có trùng tên hồ sơ (chỉ thông tin)"},
+ {key:"avatarEvidence",label:"Avatar: present/absent_observed/unknown"},
+ {key:"regionContext",label:"Địa phương: local/other/unknown"},
+ {key:"profileDataSource",label:"Nguồn dữ liệu hồ sơ"},
+ {key:"localRuleApplied",label:"Quy tắc địa phương"},
+ {key:"dataQuality",label:"Vấn đề dữ liệu (không phải bot)"},
  {key:"evidence",label:"Lý do / bằng chứng"},
  {key:"photoCount",label:"Số ảnh tương tác"},
  {key:"photoIds",label:"Photo IDs"},

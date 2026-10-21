@@ -1,4 +1,18 @@
-# VOIDSCAN Reaction Audit — Chrome Extension 0.4.3
+# VOIDSCAN Reaction Audit — Chrome Extension 0.4.4
+
+## 0.4.4 — Sửa quy tắc dựa trên dữ liệu thật
+
+- Sửa sai phiên 0.4.3: **reaction UNKNOWN** là thiếu nhãn thu thập và **trùng tên hiển thị** là thông tin cần đối chiếu, KHÔNG tự đánh dấu tài khoản nghi vấn/bot.
+- Có thể chọn **nhiều CSV reaction** cùng lúc để tổng hợp số Photo ID độc lập và kiểm tra lịch sử tương tác nhiều ảnh. Khi có nhiều ảnh, mặc định phân tích TẤT CẢ ẢNH; vẫn có thể chọn từng ảnh.
+- Nút **Chọn CSV hồ sơ** nhận một tệp bổ sung hợp lệ có profileUrl và các cột avatarUrl/hasAvatar, currentCity/location, bio/hasBio, education/hasEducation, work/hasWork, friendsCount, followingCount. Ghép theo URL chuẩn hoặc numeric ID khi có.
+- **Ô trống = chưa thu thập**. Chỉ hasAvatar=0 từ nguồn quan sát rõ ràng mới được xem là không thấy avatar. avatarUrl trống trong CSV reaction không phải bằng chứng tài khoản không có avatar.
+- Địa điểm tự khai Dĩ An, Bình Dương, HCM được ưu tiên theo quy tắc người dùng; không có nghĩa đã xác thực danh tính, và cảnh báo xung đột reaction vẫn cần kiểm tra.
+- Các cột nguồn dữ liệu, avatar, vùng địa điểm và lỗi chất lượng CSV được xuất riêng. Không thu thập cookie, tự truy cập hàng loạt profile hay suy đoán ngày đăng ký tài khoản.
+- Trạng thái "nghi vấn" chỉ là tín hiệu quan sát được; KHÔNG phải xác nhận bot và không tự trừ phiếu.
+
+**Cập nhật:** mở chrome://extensions, bấm Reload tại VOIDSCAN rồi mở lại review.html.
+
+
 
 ## 0.4.3 — Sàng lọc chỉ cần có dấu hiệu
 

@@ -24,7 +24,16 @@
       <div class="upload-details" id="source-label">Chưa nhập file · Có thể chọn “Lấy dữ liệu từ tiện ích” để dùng dữ liệu đang lưu trong Chrome.</div>
     </div>
     <label for="upload" class="upload-button">Chọn file CSV</label>
-    <input id="upload" type="file" accept=".csv,text/csv,text/plain" aria-label="Chọn file CSV để phân tích">
+    <input id="upload" type="file" multiple accept=".csv,text/csv,text/plain" aria-label="Chọn nhiều CSV ảnh để phân tích">
+  </section>
+  <section class="upload" aria-label="Nhập thông tin hồ sơ bổ sung" style="margin-top:12px">
+    <div class="upload-icon">META</div>
+    <div class="upload-copy"><h2>Ghép CSV thông tin hồ sơ</h2>
+      <p>Chỉ nhập dữ liệu bạn có quyền truy cập. Hỗ trợ avatarUrl/hasAvatar, currentCity, hasBio, hasEducation, hasWork. Ô trống nghĩa là chưa biết.</p>
+      <div class="upload-details" id="profile-source">Chưa có nguồn hồ sơ · không suy từ cột thiếu.</div>
+    </div>
+    <label for="profile-upload" class="upload-button">Chọn CSV hồ sơ</label>
+    <input id="profile-upload" type="file" accept=".csv,text/csv,text/plain" aria-label="Chọn CSV thông tin hồ sơ" style="position:absolute;width:1px;height:1px;opacity:0">
   </section>
   <section class="progress-wrap" aria-label="Tiến độ phân tích">
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
@@ -77,6 +86,9 @@
           <div>Ảnh tương tác<b id="nphotos">0</b></div>
           <div>Phản ứng chưa rõ<b id="nunknown">0</b></div>
           <div>Trường thông tin có sẵn<b id="nfields">0</b></div>
+          <div>Avatar từ nguồn<b id="avatar-state" style="font-size:14px">Chưa thu thập</b></div>
+          <div>Địa điểm tự khai<b id="location-state" style="font-size:14px">Chưa thu thập</b></div>
+          <div>Nguồn hồ sơ<b id="profile-evidence-source" style="font-size:12px">Chưa có</b></div>
         </div>
         <h3>Lý do đánh giá</h3><div class="reasons" id="reasons"></div>
         <p class="small">Các chỉ số dùng để quyết định có cần rà soát, không được coi là xác suất bot. Một người bình chọn nhiều ảnh vẫn có thể hoàn toàn hợp lệ.</p>
@@ -98,6 +110,7 @@
 </main>
 <script src="lib.js"></script>
 <script src="file-audit.js"></script>
+<script src="profile-import.js"></script>
 <script src="reaction-integrity.js"></script>
 <script src="xlsx-export.js"></script>
 <script src="review.js"></script>

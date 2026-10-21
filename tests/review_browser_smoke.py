@@ -56,7 +56,7 @@ class ImportedCsvBrowser(unittest.TestCase):
     page=browser.new_page(accept_downloads=True,viewport={"width":1250,"height":900})
     page.set_content((EXT/"review.html").read_text(encoding="utf-8"))
     page.evaluate(MOCK)
-    for name in ("lib.js","file-audit.js","reaction-integrity.js","xlsx-export.js","review.js"):
+    for name in ("lib.js","file-audit.js","profile-import.js","reaction-integrity.js","xlsx-export.js","review.js"):
      page.add_script_tag(path=str(EXT/name))
     page.wait_for_function('document.getElementById("total").textContent==="1"',timeout=12000)
     self.assertEqual(page.locator("#total").inner_text(),"1")
@@ -64,17 +64,19 @@ class ImportedCsvBrowser(unittest.TestCase):
       "name":"VOIDSCAN_reactions_test.csv","mimeType":"text/csv","buffer":fixture()
     })
     page.wait_for_function('document.getElementById("progress-title").textContent==="Hoàn tất phân tích CSV (chưa xác minh profile)"',timeout=20000)
-    self.assertNotEqual(page.locator("#photo-scope").input_value(),"all")
-    self.assertEqual(page.locator("#total").inner_text(),"2") # two records on last image? one of each class
+    self.assertEqual(page.locator("#photo-scope").input_value(),"all") # all photos needed for cross-photo history
+    page.wait_for_function('document.getElementById("total").textContent==="13"',timeout=20000)
+    page.locator("#photo-scope").select_option(PHOTOIDS[9])
+    page.wait_for_function('document.getElementById("total").textContent==="2"',timeout=20000)
     page.locator("#photo-scope").select_option("all")
     page.wait_for_function('document.getElementById("total").textContent==="13"',timeout=20000)
     self.assertEqual(page.locator("#total").inner_text(),"13")
-    self.assertEqual(page.locator("#flagged").inner_text(),"2") # conflicting reactions + UNKNOWN need review
-    self.assertEqual(page.locator("#nosignal").inner_text(),"11")
+    self.assertEqual(page.locator("#flagged").inner_text(),"1") # conflicting reactions; UNKNOWN is data quality only
+    self.assertEqual(page.locator("#nosignal").inner_text(),"12")
     self.assertEqual(page.locator("#checked").inner_text(),"13")
     self.assertEqual(page.locator("#photos").inner_text(),"10")
     self.assertEqual(page.locator("#progress-number").inner_text(),"13 / 13 tài khoản")
-    self.assertEqual(page.locator(".queuebutton").count(),2)
+    self.assertEqual(page.locator(".queuebutton").count(),1)
     self.assertIn("Nghi vấn",page.locator(".queuebutton").first.inner_text())
     self.assertEqual(page.locator("#progress-track").get_attribute("aria-valuenow"),"100")
     with page.expect_download(timeout=15000) as get_integrity:
@@ -113,9 +115,39 @@ class ImportedCsvBrowser(unittest.TestCase):
       ET.fromstring(links)
       ET.fromstring(sheet)
       ET.fromstring(st)
+    # A second, explicitly supplied profile CSV must change visible evidence.
+    enriched=("profileUrl,currentCity,hasAvatar\n"+url(100)+",Bắc Ninh,0\n").encode("utf-8")
+    page.locator("#profile-upload").set_input_files({
+      "name":"profile_evidence.csv","mimeType":"text/csv","buffer":enriched
+    })
+    page.wait_for_function('document.getElementById("flagged").textContent==="2"',timeout=20000)
+    self.assertIn("Đã nạp",page.locator("#profile-source").inner_text())
     # Show complete unfiltered list without losing original input order.
     page.locator("#filter").select_option("all")
     self.assertEqual(page.locator(".queuebutton").count(),13)
+   finally:browser.close()
+
+ def test_import_two_photo_csvs(self):
+  with sync_playwright() as pw:
+   browser=pw.chromium.launch(channel="chrome",headless=True)
+   try:
+    page=browser.new_page()
+    page.set_content((EXT/"review.html").read_text(encoding="utf-8"))
+    page.evaluate(MOCK)
+    for name in ("lib.js","file-audit.js","profile-import.js","reaction-integrity.js","xlsx-export.js","review.js"):
+     page.add_script_tag(path=str(EXT/name))
+    def sample(i,kind):
+     return ("photoId,profileUrl,reaction\n"+PHOTOIDS[i]+","+url(999)+","+kind+"\n").encode("utf-8")
+    page.locator("#upload").set_input_files([
+     {"name":"one.csv","mimeType":"text/csv","buffer":sample(0,"LIKE")},
+     {"name":"two.csv","mimeType":"text/csv","buffer":sample(1,"LOVE")}
+    ])
+    page.wait_for_function('document.getElementById("photos").textContent==="2"',timeout=20000)
+    self.assertEqual(page.locator("#photo-scope").input_value(),"all")
+    self.assertEqual(page.locator("#total").inner_text(),"1")
+    self.assertEqual(page.locator("#flagged").inner_text(),"0")
+    page.locator("#filter").select_option("all")
+    self.assertEqual(page.locator("#nphotos").inner_text(),"2")
    finally:browser.close()
 
 if __name__=="__main__":
