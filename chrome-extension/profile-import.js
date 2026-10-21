@@ -12,6 +12,7 @@ function normalizeRow(raw){
  const first=(...keys)=>{for(const k of keys){const value=m[key(k)];if(value!==undefined&&String(value).trim()!=="")return String(value).trim();}return "";};
  return {
   profileUrl:first("profileUrl","profileLink","url","urlTaiKhoan","facebookUrl"),
+  displayName:first("displayName","name","tenHienThi"),
   userId:first("userId","id"),
   currentCity:first("currentCity","location","city","noiO","diaDiem"),
   regionContext:first("regionContext"),
@@ -42,7 +43,7 @@ function observe(c){
  const city=["local","other"].includes(c.regionContext)?c.regionContext:region(c.currentCity);
  const avatar=flag(c.hasAvatar,Boolean(c.avatarUrl));
  const result={
-  profileUrl:url.profileUrl,userId:url.userId,regionContext:city,
+  profileUrl:url.profileUrl,userId:url.userId||(/^\d{5,30}$/.test(c.userId)?c.userId:""),displayName:c.displayName||"",regionContext:city,
   profileDataSource:["observed_open_profile","public_metadata"].includes(c.source)?c.source:"uploaded_profile_csv",hasAvatar:avatar,
   avatarEvidence:avatar==="1"?"present":avatar==="0"?"absent_observed":"unknown",
   locationEvidence:city==="unknown"?"unknown":"declared_in_source",
@@ -80,13 +81,23 @@ function enrich(reactionRows,sourceRows){
   if(intrinsic)evidence.profileDataSource="reaction_csv_fields";
   matched++;
   const merged={...r};
+  if(!String(r.displayName||"").trim()&&evidence.displayName)merged.displayName=evidence.displayName;
   for(const [k,v] of Object.entries(evidence)){
-   if(["profileUrl","userId"].includes(k))continue;
+   if(["profileUrl","userId","displayName"].includes(k))continue;
    if(v!==""&&v!==undefined)merged[k]=v;
   }
   return merged;
  });
  return {rows,matchedRows:matched,sourceAccounts:loaded.sourceAccounts,skippedAccounts:loaded.skipped};
 }
-return {normalizeRow,region,flag,observe,importProfiles,enrich};
+function inspectExportHeaders(headers){
+ const names=new Set((Array.isArray(headers)?headers:[]).map(key));
+ const recognises=names.has("profileurl")&&names.has("id")&&names.has("name");
+ return {isFriendsExporter:recognises,
+   hasLocation:names.has("location"),hasAvatar:names.has("avatarurl"),
+   hasBio:names.has("bio"),hasCategory:names.has("category"),
+   skippedSensitiveHeaders:["email","phonenumber","birthday","gender","websites"]
+     .filter(n=>names.has(n))};
+}
+return {normalizeRow,region,flag,observe,importProfiles,enrich,inspectExportHeaders};
 });

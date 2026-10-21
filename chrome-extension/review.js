@@ -300,10 +300,12 @@ async function loadProfiles(file){
  if(!file)return;
  if(file.size>MAX_CSV_BYTES)throw Error("CSV hồ sơ vượt 15 MB.");
  const parsed=FILE.parseCSV(await file.text());
+ const sourceColumns=PROFILE.inspectExportHeaders(parsed.headers);
  profileSource=parsed.rows;
  if(allSource.length)await scanScope();
  else $("profile-source").textContent="Đã nạp "+fmt(profileSource.length)+" dòng hồ sơ; chờ nhập CSV reaction.";
- msg("Đã đọc thông tin hồ sơ từ CSV bổ sung; không truy cập các trang Facebook.");
+ msg((sourceColumns.isFriendsExporter?"Đã nhận CSV FBFriends 1.3.1. ":"Đã nhận CSV hồ sơ. ")+
+   "Đã bỏ qua trường nhạy cảm; chỉ đối chiếu URL/ID và những thông tin phù hợp. Không truy cập Facebook.");
 }
 function allRows(flaggedOnly){
  return results.filter(p=>!flaggedOnly||p.status===FILE.LABEL_SUSPECT);

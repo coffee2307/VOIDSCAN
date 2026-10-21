@@ -1,4 +1,17 @@
-# VOIDSCAN Reaction Audit — Chrome Extension 0.5.0
+# VOIDSCAN Reaction Audit — Chrome Extension 0.5.1
+
+## 0.5.1 — Tương thích CSV của FBFriends 1.3.1
+
+- Xác nhận từ mã nguồn FBFriends 1.3.1: đầu ra CSV chứa ID, Name, Profile URL, Avatar URL; các cột mở rộng có Location, Bio, Category (ngoài những trường cá nhân khác).
+- VOIDSCAN nhận trực tiếp CSV đúng định dạng đó trong mục **Ghép CSV thông tin hồ sơ**, tự ghép theo Profile URL hoặc ID nếu URL thuộc Facebook và điền tên hiển thị khi reaction thiếu tên.
+- Avatar URL trống luôn là "chưa thu thập"; không coi là tài khoản không có avatar. Location chỉ là nơi ở tự khai. Bio/Category chỉ lưu sự hiện diện; không lưu nguyên nội dung và không lưu ngày sinh, giới tính, số điện thoại, email, website.
+- Không sao chép, cài đặt hay kích hoạt GraphQL/cookie scraper của extension bên thứ ba. Dữ liệu nằm trong phiên Chrome và chỉ xuất khi người dùng yêu cầu.
+- Bản CSV xuất từ danh sách bạn bè của người khác không tự chứng minh "bạn chung" với tài khoản đang đánh giá.
+- Test: `node chrome-extension/test-fbfriends-compat.cjs` và regression browser tests.
+
+**Cập nhật:** mở chrome://extensions, bấm Reload tại VOIDSCAN rồi chọn CSV reaction và CSV FBFriends 1.3.1.
+
+
 
 ## 0.5.0 — Không còn coi dữ liệu chưa thu thập là tài khoản sạch
 
