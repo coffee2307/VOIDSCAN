@@ -1,4 +1,13 @@
-# VOIDSCAN Reaction Audit — Chrome Extension 0.3.1
+# VOIDSCAN Reaction Audit — Chrome Extension 0.3.2
+
+## Sửa lỗi Facebook đã xác nhận ở v0.3.2
+
+- Đã đọc cấu trúc của danh sách reaction trong phiên Facebook được người dùng kết nối: liên kết avatar có nhãn `đã thích` hoặc `đã cảm thấy Yêu thích`. Bản cũ không đọc nhãn này nên lưu 190 URL `UNKNOWN`, dù đã xuất CSV được.
+- Bản 0.3.2 **đọc loại cảm xúc từ aria-label của URL hồ sơ** ngay trên tab `Tất cả`, không bắt buộc chuyển tab khi Facebook đã công khai nhãn reaction ở từng dòng. Hỗ trợ Like/Love/Care/Haha/Wow và không tính Sad/Angry.
+- Facebook thường tạo hai liên kết (avatar và tên) trỏ cùng một hồ sơ. Bộ thu thập nay gộp theo URL, giữ reaction từ liên kết avatar, không để liên kết tên ghi đè thành `UNKNOWN`.
+- Khi quét lại ảnh, bản ghi `UNKNOWN` cũ của cùng một URL sẽ tự chuyển thành reaction chính xác nếu nhãn có sẵn; dữ liệu đã lưu không bị xóa. Không tự đoán loại cho URL không quan sát được.
+- Kiểm thử hồi quy `tests/extension_profile_aria_smoke.py` mô phỏng cấu trúc nhãn thực tế, kiểm thử `UNKNOWN` và quét 5 tab đều đạt. Tính năng vẫn có thể phụ thuộc cập nhật UI Facebook.
+- **Cập nhật:** trong `chrome://extensions` nhấn Reload VOIDSCAN, tải lại tab ảnh Facebook và chạy **Quét tự động cả 5 loại cảm xúc** để nâng dữ liệu cũ. Không bấm Xóa dữ liệu.
 
 ## Sửa lỗi không nhận diện cảm xúc ở v0.3.1
 
@@ -32,7 +41,7 @@
 2. Bật Developer Mode nếu cần.
 3. Tìm VOIDSCAN Reaction Audit và nhấn Reload. Không cần gỡ cài đặt hay đăng nhập Facebook lần nữa.
 4. Tải lại tab Facebook bằng Ctrl+R, bấm icon extension rồi chọn mở bảng điều khiển.
-5. Kiểm tra phiên bản hiển thị 0.3.1. Nếu Facebook chỉ hiển thị tab Tất cả, hãy ưu tiên Quét tự động cả 5 loại cảm xúc hoặc bấm Kiểm tra nhận diện. Nhấn Xem hồ sơ cần rà soát để mở bảng lọc tự động.
+5. Kiểm tra phiên bản hiển thị 0.3.2. Nếu Facebook chỉ hiển thị tab Tất cả, hãy ưu tiên Quét tự động cả 5 loại cảm xúc hoặc bấm Kiểm tra nhận diện. Nhấn Xem hồ sơ cần rà soát để mở bảng lọc tự động.
 
 Mã nguồn extension ở F:\VOIDSCAN\chrome-extension.
 

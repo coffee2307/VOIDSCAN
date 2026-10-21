@@ -69,6 +69,22 @@ function reactionFromLabel(value){
   return cleanReaction(leading)||cleanReaction(prefix)||
     (match?cleanReaction(match[1]):null)||cleanReaction(str)||null;
 }
+function reactionFromProfileLabel(value){
+  // Facebook's actual reaction dialog exposes accessibility labels:
+  // "Nguyễn A đã thích", "Nguyễn B đã cảm thấy Yêu thích".
+  // Only match an explicit terminal verb, never infer reactions from names
+  // or from generic avatar/icon appearance.
+  const label=String(value||"").replace(/\u00a0/g," ").trim();
+  if(!label)return null;
+  const clean=label.replace(/,\s*(?:unseen story|đang có tin|has a story).*$/i,"").trim();
+  const excluded=clean.match(/\sđã\s+(?:cảm thấy\s+)?(buồn|phẫn nộ)\s*$/iu);
+  if(excluded)return "EXCLUDED";
+  const vi=clean.match(/\sđã\s+(?:cảm thấy\s+)?(thương thương|yêu thích|ngạc nhiên|thích|haha|wow|cười)\s*$/iu);
+  if(vi)return cleanReaction(vi[1]);
+  const en=clean.match(/\s(?:reacted\s+with|reacted\s+to\s+this\s+with)\s+(like|love|care|haha|wow)\s*$/i);
+  if(en)return cleanReaction(en[1]);
+  return null;
+}
 function parseCount(value){
   const s=String(value||"").trim().replace(/\s/g,"").replace(/,/g,"");
   const match=s.match(/^(\d+(?:\.\d+)?)([kKmM])?$/);
@@ -117,5 +133,5 @@ function dedupe(records){
   }
   return [...m.values()];
 }
-return {types,fbUrl,photoId,normalizeProfile,profileMeta,cleanReaction,reactionFromLabel,parseCount,avatarUrl,csv,aggregate,dedupe};
+return {types,fbUrl,photoId,normalizeProfile,profileMeta,cleanReaction,reactionFromLabel,reactionFromProfileLabel,parseCount,avatarUrl,csv,aggregate,dedupe};
 });

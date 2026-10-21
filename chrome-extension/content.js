@@ -128,6 +128,14 @@ function visibleCards(dialog){
     const dim=v.node.getBoundingClientRect();
     return dim.width>0&&dim.width<=42&&dim.height>0&&dim.height<=42;
   });
+  const ariaReaction=lib.reactionFromProfileLabel(anchor.getAttribute("aria-label")||"");
+  // Facebook creates TWO links to a profile in many reaction rows:
+  // avatar anchor with "X đã thích" and a plain username anchor.
+  // Pair them by normalized profile URL, not by visible order/name.
+  const matchingProfileLabels=[...row.querySelectorAll("a[href][aria-label]")].filter(a=>
+    lib.normalizeProfile(a.href)===meta.profileUrl);
+  const pairedReaction=matchingProfileLabels.map(a=>
+    lib.reactionFromProfileLabel(a.getAttribute("aria-label")||"")).find(Boolean)||null;
   const img=[...row.querySelectorAll("img[src]")].find(el=>{
     const dim=el.getBoundingClientRect();
     return dim.width>=30&&dim.height>=30&&dim.width<=160&&dim.height<=160&&lib.avatarUrl(el.src);
@@ -139,10 +147,14 @@ function visibleCards(dialog){
   const mutualMatch=text.match(/(\d+(?:[.,]\d+)?)\s*(?:bạn chung|mutual friends?)/i);
   const mutual=mutualMatch?Number(mutualMatch[1].replace(/[.,]/g,"")):null;
   const displayName=(anchor.innerText||"").trim().replace(/\s+/g," ").slice(0,120);
-  found.set(meta.profileUrl,{...meta,displayName,
-    avatarUrl:img?lib.avatarUrl(img.src):"",friendshipStatus:friend,subscribeStatus:following,
-    mutualFriendsNumber:Number.isInteger(mutual)?mutual:null,
-    reactionIcon:reactionIcon?.kind||null});
+  const previous=found.get(meta.profileUrl);
+  found.set(meta.profileUrl,{...meta,
+    displayName:displayName||previous?.displayName||"",
+    avatarUrl:(img?lib.avatarUrl(img.src):"")||previous?.avatarUrl||"",
+    friendshipStatus:friend||previous?.friendshipStatus||"",
+    subscribeStatus:following||previous?.subscribeStatus||"",
+    mutualFriendsNumber:Number.isInteger(mutual)?mutual:(previous?.mutualFriendsNumber??null),
+    reactionIcon:ariaReaction||pairedReaction||reactionIcon?.kind||previous?.reactionIcon||null});
  }
  return [...found.values()];
 }
@@ -171,6 +183,7 @@ async function saveCards(id,mode,cards){
   const pendingKeys=new Set(pending.map(r=>r.photoId+"|"+r.profileUrl));
   let added=0,skipped=0,changed=false;
   for(const card of cards){
+    if(card.reactionIcon==="EXCLUDED")continue; // Sad/Angry do not count and are not UNKNOWN.
     // A confirmed single-reaction tab is more reliable than decorative icons.
     const type=lib.cleanReaction(mode)||lib.cleanReaction(card.reactionIcon);
     const key=id+"|"+card.profileUrl;
@@ -362,7 +375,7 @@ function diagnostic(){
  const selected=selectedType(dialog)||"Không rõ / Tất cả";
  const icons=rows.filter(x=>x.reactionIcon).length;
  report("Chẩn đoán: "+tabs.length+" tab có tên cảm xúc, tab chọn: "+selected+
-   ", "+rows.length+" URL đang hiển thị, "+icons+" biểu tượng nhận dạng được. "+
+   ", "+rows.length+" URL đang hiển thị, "+icons+" loại cảm xúc đọc từ nhãn/icon. "+
    (tabs.length===0&&icons===0?"Facebook không hiển thị dấu hiệu phân loại; URL sẽ lưu dạng UNKNOWN. Hãy gửi ảnh chụp thanh tab cảm xúc để điều chỉnh.":"Hãy chọn Quét tự động cả 5 loại cảm xúc."));
 }
 $("vdiag").addEventListener("click",diagnostic);
