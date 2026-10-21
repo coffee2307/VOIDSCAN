@@ -105,11 +105,13 @@ function prepare(raw){
    let item=profiles.get(r.profileUrl);
    if(!item){
      item={profileUrl:r.profileUrl,userId:r.userId,username:r.username,
+       displayName:String(r.displayName||"").trim(),nameCollisionPhotos:new Set(),
        photoIds:new Set(),reactions:new Set(),perPhoto:new Map(),
        fields:new Set(),profileFlagsObserved:new Set(),friendsCount:null,followingCount:null,
        rawRows:0,unknownRows:0,sourceRows:[]};
      profiles.set(r.profileUrl,item);
    }
+   if(!item.displayName&&r.displayName)item.displayName=String(r.displayName).trim();
    if(r.photoId)item.photoIds.add(r.photoId);
    if(r.reaction==="UNKNOWN")item.unknownRows++;
    else item.reactions.add(r.reaction);
@@ -132,10 +134,31 @@ function prepare(raw){
    if(r.friendsCount!==null)item.friendsCount=r.friendsCount;
    if(r.followingCount!==null)item.followingCount=r.followingCount;
  }
+ // Same visible name among distinct profile URLs on the SAME photo is a weak
+ // review signal, not an identity match and not evidence that either is fake.
+ const perPhotoNames=new Map();
+ for(const p of profiles.values()){
+   const name=String(p.displayName||"").trim().toLocaleLowerCase("vi-VN");
+   if(!name)continue;
+   for(const photoId of p.photoIds){
+     const key=photoId+"|"+name;
+     if(!perPhotoNames.has(key))perPhotoNames.set(key,[]);
+     perPhotoNames.get(key).push(p);
+   }
+ }
+ for(const group of perPhotoNames.values()){
+   if(group.length<=1)continue;
+   for(const p of group)for(const photoId of p.photoIds){
+     if(group.some(other=>other!==p&&other.photoIds.has(photoId)))
+       p.nameCollisionPhotos.add(photoId);
+   }
+ }
  return {rows,profiles:[...profiles.values()],photoTotal:photos.size,warnings};
 }
 function scoreProfile(p,photoTotal,decision){
  const photoCount=p.photoIds.size, reasons=[];
+ if(p.unknownRows>0)reasons.push("Có "+p.unknownRows+" reaction chưa xác định loại; cần xác minh lại dữ liệu, không phải bằng chứng bot");
+ if(p.nameCollisionPhotos?.size>0)reasons.push("Tên hiển thị trùng trên "+p.nameCollisionPhotos.size+" ảnh với URL hồ sơ khác; tín hiệu yếu, có thể trùng tên người thật");
  const conflicts=[...p.perPhoto].filter(([,set])=>set.size>1);
  if(conflicts.length)reasons.push("Nhiều loại reaction được ghi trên cùng ảnh; có thể do người dùng đổi cảm xúc giữa các lần xuất");
  if(photoTotal>=8&&photoCount>=Math.max(6,Math.ceil(photoTotal*.70)))
@@ -148,7 +171,8 @@ function scoreProfile(p,photoTotal,decision){
  const previous=decision&&decision[p.profileUrl]||{};
  if(previous.status==="needs_review")reasons.push("Được người kiểm duyệt đánh dấu cần kiểm tra");
  const suspected=reasons.length>0;
- return {profileUrl:p.profileUrl,userId:p.userId,username:p.username,
+ return {profileUrl:p.profileUrl,userId:p.userId,username:p.username,displayName:p.displayName||"",
+   nameCollisionPhotoCount:p.nameCollisionPhotos?.size||0,
    photoCount,photoIds:[...p.photoIds].join(" | "),
    reactionTypes:[...p.reactions].join(" | "),reactionRows:p.rawRows,unknownRows:p.unknownRows,
    availableInfoPoints:knownFields,profileInfoFieldsObserved:p.profileFlagsObserved.size,
@@ -167,7 +191,9 @@ const COLUMNS=[
  {key:"profileUrl",label:"URL hồ sơ"},
  {key:"userId",label:"User ID"},
  {key:"username",label:"Username"},
+ {key:"displayName",label:"Tên hiển thị"},
  {key:"status",label:"Trạng thái"},
+ {key:"nameCollisionPhotoCount",label:"Ảnh có trùng tên hồ sơ"},
  {key:"evidence",label:"Lý do / bằng chứng"},
  {key:"photoCount",label:"Số ảnh tương tác"},
  {key:"photoIds",label:"Photo IDs"},

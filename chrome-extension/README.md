@@ -1,4 +1,15 @@
-# VOIDSCAN Reaction Audit — Chrome Extension 0.4.2
+# VOIDSCAN Reaction Audit — Chrome Extension 0.4.3
+
+## 0.4.3 — Sàng lọc chỉ cần có dấu hiệu
+
+- Khi CSV chứa reaction **UNKNOWN**, đưa hồ sơ vào nhóm **nghi vấn / cần rà soát**, nêu rõ cần xác minh loại reaction trước khi tính điểm. Đây là tín hiệu thiếu dữ liệu, không phải chứng cứ bot.
+- Khi nhiều URL khác nhau có **cùng tên hiển thị trong cùng Photo ID**, đánh dấu nghi vấn yếu để người kiểm duyệt đối chiếu. Không gắn cờ chỉ vì một tên xuất hiện ở các Photo ID khác nhau; trùng tên không đồng nghĩa một người điều khiển nhiều tài khoản.
+- Bổ sung Tên hiển thị và số ảnh có tên trùng vào CSV/XLSX kiểm toán, kèm lý do rõ ràng trên bảng điều khiển.
+- Ngưỡng sàng lọc được mở rộng để ưu tiên rà soát, **không tự loại reaction hay tự xác nhận bot**. Các trường chưa từng thu thập không được coi là thiếu trên hồ sơ Facebook.
+- Kiểm thử hồi quy: `node chrome-extension/test-file-audit.cjs`, `python tests/review_browser_smoke.py`.
+- Bản Excel được lập từ CSV 190 tài khoản có 17 hồ sơ thuộc diện cần rà soát theo ngưỡng này, không phải 17 bot.
+
+**Cập nhật:** mở `chrome://extensions`, bấm Reload tại VOIDSCAN; sau đó mở lại trang kiểm toán và chọn CSV để sàng lọc với quy tắc mới. Không xóa dữ liệu đã thu thập.
 
 ## 0.4.2 — Kiểm toán số phản ứng theo ảnh (offline)
 

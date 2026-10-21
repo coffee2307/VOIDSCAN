@@ -20,11 +20,20 @@ const one=scored.find(x=>x.profileUrl===profile(1));
 assert.equal(one.status,"nghi vấn");
 assert(one.evidence.includes("Nhiều loại reaction"));
 const empty=scored.find(x=>x.profileUrl===profile(500));
-assert.equal(empty.status,"không có dấu hiệu");
+assert.equal(empty.status,"nghi vấn");
+assert(empty.evidence.includes("reaction chưa xác định loại"));
 assert.equal(empty.unknownRows,1);
 const large=scored.find(x=>x.profileUrl===profile(501));
 assert.equal(large.status,"nghi vấn");
 assert(large.evidence.includes("số bạn bè/theo dõi cao"));
+const colliding=f.prepare([
+ {photoId:pic(0),profileUrl:profile(603),reaction:"LIKE",displayName:"Nguyễn Liên"},
+ {photoId:pic(0),profileUrl:profile(604),reaction:"LOVE",displayName:"Nguyễn Liên"},
+ {photoId:pic(1),profileUrl:profile(605),reaction:"LOVE",displayName:"Nguyễn Liên"},
+]);
+const signals=colliding.profiles.map(x=>f.scoreProfile(x,colliding.photoTotal,{}));
+assert.equal(signals.filter(x=>x.status==="nghi vấn").length,2);
+assert(signals.every(x=>x.botConfirmed==="CHƯA_XÁC_MINH"));
 const regular=scored.find(x=>x.profileUrl===profile(100));
 assert.equal(regular.status,"không có dấu hiệu");
 assert.equal(f.scoreProfile(prepared.profiles[0],10,{[profile(1)]:{status:"needs_review"}}).status,"nghi vấn");
