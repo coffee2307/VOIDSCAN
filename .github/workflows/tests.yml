@@ -27,6 +27,9 @@ jobs:
           node --check chrome-extension/lib.js
           node --check chrome-extension/popup.js
           node --check chrome-extension/content.js
+          node --check chrome-extension/review-lib.js
+          node --check chrome-extension/review.js
           node chrome-extension/test-lib.cjs
+          node chrome-extension/test-review.cjs
       - name: Isolated HTTP smoke
         run: python tests/smoke_http.py

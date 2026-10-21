@@ -13,6 +13,11 @@ async function refresh(){
  const all=await rows();
  $("records").textContent=all.length.toLocaleString("vi-VN");
  $("photos").textContent=new Set(all.map(x=>x.photoId)).size.toLocaleString("vi-VN");
+ const review=window.VoidscanReview;
+ if(review){const result=review.analyse(all,{});const stats=review.summary(result);
+   $("screening-flagged").textContent=(stats.reviewFirst+stats.review).toLocaleString("vi-VN");
+   $("screening-total").textContent=stats.total.toLocaleString("vi-VN");
+ }
 }
 async function download(name,data,type){
  const blob=new Blob([data],{type});
@@ -72,6 +77,10 @@ function home(){
  status("Home · Sẵn sàng.");
 }
 $("home").addEventListener("click",home);
+$("screening").addEventListener("click",async()=>{
+ try{await chrome.tabs.create({url:chrome.runtime.getURL("review.html")});}
+ catch{status("Không mở được trang sàng lọc.");}
+});
 $("details").addEventListener("click",()=>{$("home-view").hidden=true;$("fields-view").hidden=false;});
 $("back").addEventListener("click",home);
 $("activate").addEventListener("click",()=>activate().catch(()=>status("Không mở được bảng thu thập. Tải lại tab Facebook.")));

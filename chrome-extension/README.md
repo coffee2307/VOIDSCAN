@@ -1,4 +1,13 @@
-# VOIDSCAN Reaction Audit — Chrome Extension 0.2.0
+# VOIDSCAN Reaction Audit — Chrome Extension 0.3.0
+
+## Bổ sung ở phiên bản 0.3.0
+
+- Trang **Sàng lọc tương tác** ngay trong extension. Nhấn nút Xem hồ sơ cần rà soát trong popup: hệ thống tự nhóm URL hồ sơ, chỉ hiển thị các hồ sơ cần đối chiếu theo dữ liệu reaction đã ghi.
+- Sàng lọc tự động dựa trên dấu hiệu **dữ liệu bị ghi nhiều loại reaction trên cùng ảnh** hoặc **một URL xuất hiện trên tỷ lệ rất lớn các ảnh được quan sát**. Các tín hiệu này có thể là hoạt động hợp lệ, tuyệt đối không được coi là bằng chứng bot.
+- Danh sách chỉ cần rà soát mặc định; có tìm kiếm, lọc, mở một URL khi bạn thực sự cần, lưu quyết định người duyệt và ghi chú ngắn.
+- CSV nghi vấn riêng và CSV đầy đủ, kèm Photo ID, các loại reaction, lý do đánh dấu, trạng thái kiểm tra. Không tự gán nhãn bot hoặc trừ điểm.
+- Số hồ sơ ưu tiên rà soát và tổng URL đọc được được hiển thị ngay trong popup. Không cần xem từng profile để chạy thuật toán.
+- Không thu thập ngày sinh, email, số điện thoại, giới tính, danh sách bạn bè hoặc tự động duyệt từng trang cá nhân. Nơi ở Dĩ An/HCM không được dùng để tự xác nhận tài khoản thật.
 
 ## Các thay đổi so với bản 0.1.0
 
@@ -15,7 +24,7 @@
 2. Bật Developer Mode nếu cần.
 3. Tìm VOIDSCAN Reaction Audit và nhấn Reload. Không cần gỡ cài đặt hay đăng nhập Facebook lần nữa.
 4. Tải lại tab Facebook bằng Ctrl+R, bấm icon extension rồi chọn mở bảng điều khiển.
-5. Kiểm tra phiên bản hiển thị 0.2.0.
+5. Kiểm tra phiên bản hiển thị 0.3.0. Nhấn Xem hồ sơ cần rà soát để mở bảng lọc tự động.
 
 Mã nguồn extension ở F:\VOIDSCAN\chrome-extension.
 
@@ -41,6 +50,10 @@ Mã nguồn extension ở F:\VOIDSCAN\chrome-extension.
     node --check chrome-extension/lib.js
     node --check chrome-extension/content.js
     node --check chrome-extension/popup.js
+    node chrome-extension/test-review.cjs
+    node --check chrome-extension/review-lib.js
+    node --check chrome-extension/review.js
     .\.venv\Scripts\python.exe tests\extension_browser_smoke.py
+    .\.venv\Scripts\python.exe tests\review_browser_smoke.py
 
 Extension không có quyền cookies, identity, debugger hoặc quyền host toàn Facebook. Script chỉ hoạt động trên tab được người dùng chủ động kích hoạt; dữ liệu lưu trong chrome.storage.local, không upload tới bên thứ ba.

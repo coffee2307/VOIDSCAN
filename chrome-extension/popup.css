@@ -23,4 +23,5 @@ header button{color:white;background:#ffffff24;border-color:#ffffff66;white-spac
 #fields-view{border:1px solid #dce4f0;padding:12px;border-radius:10px;background:#fff;line-height:1.7}
 #fields-view h3{font-size:14px;margin:0}
 #fields-view button{width:100%}
+.screening-count{margin:12px 0 4px;padding:10px;border-radius:9px;background:#eef2fc;color:#365579;font-size:12px}.screening-count strong{font-size:15px;color:#233c78}
 [hidden]{display:none!important}
