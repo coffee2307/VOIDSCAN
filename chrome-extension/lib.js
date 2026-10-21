@@ -1,0 +1,15 @@
+(function(root,factory){const api=factory();if(typeof module==="object"&&module.exports)module.exports=api;root.VoidscanAudit=api;})(typeof globalThis!=="undefined"?globalThis:this,function(){
+"use strict";
+const types=["LIKE","LOVE","CARE","HAHA","WOW"];
+const reserved=new Set(["about","ads","bookmarks","business","events","friends","gaming","groups","help","home","login","logout","marketplace","messages","notifications","pages","photo","photo.php","photos","plugins","policies","privacy","reel","reels","saved","search","settings","share","sharer","stories","story.php","watch","hashtag","recover","two_step_verification","checkpoint","posts","permalink","videos","media","watch"]);
+function fbUrl(url){try{const u=new URL(url,"https://www.facebook.com/");return u.protocol==="https:"&&["facebook.com","www.facebook.com","m.facebook.com","web.facebook.com"].includes(u.hostname.toLowerCase())?u:null;}catch{return null;}}
+function photoId(url){const u=fbUrl(url);if(!u)return null;const id=u.searchParams.get("fbid");if(id&&/^\d{5,30}$/.test(id)&&/^\/(?:photo|photo\.php)\/?$/.test(u.pathname))return id;const m=u.pathname.match(/\/photos\/(?:[^/]+\/)?(\d{5,30})(?:\/|$)/);return m?m[1]:null;}
+function normalizeProfile(url){const u=fbUrl(url);if(!u)return null;const segments=u.pathname.split("/").filter(Boolean);if(!segments.length)return null;const first=segments[0].toLowerCase();if(reserved.has(first)||first.startsWith("ajax")||first.startsWith("api"))return null;
+if(first==="profile.php"){const id=u.searchParams.get("id");return id&&/^\d{5,30}$/.test(id)?"https://www.facebook.com/profile.php?id="+id:null;}
+if(first==="people"){if(segments.length!==3||!/^\d{5,30}$/.test(segments[2]))return null;return "https://www.facebook.com/people/"+encodeURIComponent(segments[1])+"/"+segments[2]+"/";}
+if(segments.length!==1||!/^[\p{L}\p{N}._-]{2,100}$/u.test(segments[0]))return null;return "https://www.facebook.com/"+encodeURIComponent(segments[0])+"/";}
+function cleanReaction(value){const x=String(value||"").trim().toUpperCase();return types.includes(x)?x:null;}
+function csvValue(value){const s=String(value??"");const safe=/^[\t\r\n ]*[=+\-@]/.test(s)?"'"+s:s;return /[",\r\n]/.test(safe)?'"'+safe.replace(/"/g,'""')+'"':safe;}
+function csv(rows,cols){return "\ufeff"+[cols.join(","),...rows.map(r=>cols.map(k=>csvValue(r[k])).join(","))].join("\r\n");}
+function aggregate(records){const m=new Map();for(const r of records){if(!r||!photoId(r.photoUrl)||photoId(r.photoUrl)!==r.photoId||!cleanReaction(r.reaction)||!normalizeProfile(r.profileUrl))continue;let row=m.get(r.photoId);if(!row){row={photoId:r.photoId,photoUrl:r.photoUrl,LIKE:0,LOVE:0,CARE:0,HAHA:0,WOW:0,observedRows:0};m.set(r.photoId,row);}row[r.reaction]++;row.observedRows++;}return Array.from(m.values());}
+return {types,fbUrl,photoId,normalizeProfile,cleanReaction,csv,aggregate};});

@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "VOIDSCAN Reaction Audit",
+  "version": "0.1.0",
+  "description": "Thu thập reaction đang hiển thị trên Facebook và xuất CSV, JSON cục bộ",
+  "action": {
+    "default_title": "VOIDSCAN Reaction Audit",
+    "default_popup": "popup.html"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "downloads"
+  ],
+  "minimum_chrome_version": "110"
+}

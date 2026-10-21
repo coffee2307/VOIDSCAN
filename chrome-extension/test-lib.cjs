@@ -1,0 +1,51 @@
+"use strict";
+const assert=require("node:assert/strict");
+const fs=require("node:fs");
+const path=require("node:path");
+const lib=require("./lib.js");
+const m=JSON.parse(fs.readFileSync(path.join(__dirname,"manifest.json"),"utf8"));
+assert.equal(m.manifest_version,3);
+assert.deepEqual(m.permissions,["activeTab","scripting","storage","downloads"]);
+assert.equal("host_permissions" in m,false);
+for(const perm of ["cookies","identity","webRequest","debugger","tabs","unlimitedStorage"]){
+ assert.equal(m.permissions.includes(perm),false);
+}
+assert.equal(lib.photoId("https://www.facebook.com/photo/?fbid=2030957244381534&set=pcb.2030979361045989"),"2030957244381534");
+assert.equal(lib.photoId("https://www.facebook.com/tuoitretruongthptdian/posts/123"),null);
+assert.equal(lib.photoId("https://other.example/photo/?fbid=2030957244381534"),null);
+assert.equal(lib.normalizeProfile("https://www.facebook.com/profile.php?id=1234567890123&comment_id=98"),"https://www.facebook.com/profile.php?id=1234567890123");
+assert.equal(lib.normalizeProfile("https://www.facebook.com/jane.doe/?mibextid=abc"),"https://www.facebook.com/jane.doe/");
+assert.equal(lib.normalizeProfile("https://www.facebook.com/people/Test-Name/1234567890123/"),"https://www.facebook.com/people/Test-Name/1234567890123/");
+for(const url of ["https://www.facebook.com/photo/?fbid=11111",
+"https://www.facebook.com/groups/12345","https://www.facebook.com/pages/12345",
+"https://evil.facebook.com/hacker","https://facebook.com.evil.example/profile",
+"https://www.facebook.com/posts/12345"]){
+ assert.equal(lib.normalizeProfile(url),null,url);
+}
+assert.equal(lib.cleanReaction("haha"),"HAHA");
+assert.equal(lib.cleanReaction("SAD"),null);
+const records=[
+ {photoId:"2030957244381534",photoUrl:"https://www.facebook.com/photo/?fbid=2030957244381534",profileUrl:"https://www.facebook.com/profile.php?id=1234567890123",reaction:"LOVE"},
+ {photoId:"2030957244381534",photoUrl:"https://www.facebook.com/photo/?fbid=2030957244381534",profileUrl:"https://www.facebook.com/jane.doe/",reaction:"LIKE"},
+ {photoId:"2030957077714884",photoUrl:"https://www.facebook.com/photo/?fbid=2030957077714884",profileUrl:"https://www.facebook.com/jane.doe/",reaction:"HAHA"},
+ {photoId:"9999999999999",photoUrl:"https://www.facebook.com/tuoitretruongthptdian/posts/123",profileUrl:"https://www.facebook.com/bad/",reaction:"WOW"}
+];
+const summary=lib.aggregate(records);
+assert.equal(summary.length,2);
+assert.equal(summary[0].observedRows,2);
+assert.equal(summary[0].LOVE,1);
+assert.equal(summary[1].HAHA,1);
+const csv=lib.csv([{col:'=HYPERLINK("evil","click")',num:12}],["col","num"]);
+assert(csv.startsWith("\ufeff"));
+assert(csv.includes("'=HYPERLINK"));
+const content=fs.readFileSync(path.join(__dirname,"content.js"),"utf8");
+const popup=fs.readFileSync(path.join(__dirname,"popup.js"),"utf8");
+assert(content.includes("querySelectorAll"));
+assert(content.includes("chrome.storage.local"));
+assert(!content.includes("document.cookie"));
+assert(!content.includes("chrome.cookies"));
+assert(!content.includes("fetch("));
+assert(!content.includes("XMLHttpRequest"));
+assert(!content.includes("eval("));
+assert(!popup.includes("fetch("));
+console.log("VOIDSCAN Chrome extension pure logic and permission tests: PASS");

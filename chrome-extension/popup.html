@@ -1,0 +1,10 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="popup.css"><title>VOIDSCAN Reaction Audit</title></head><body>
+<header><strong>VOIDSCAN</strong> <span>Reaction Audit</span><p>Kiểm kê reaction trên các ảnh Facebook</p></header>
+<main>
+<div class="metrics"><div><strong id="photos">0</strong><small>Ảnh có dữ liệu</small></div><div><strong id="records">0</strong><small>Reaction đã ghi</small></div></div>
+<button id="activate" class="primary">Mở bảng thu thập trên tab Facebook</button>
+<p id="status" role="status">Chỉ hoạt động trên tab Facebook hiện tại.</p>
+<div class="actions"><button id="csv">Xuất danh sách CSV</button><button id="summary">Xuất tổng hợp CSV</button><button id="json">Xuất JSON</button><button id="photo-links">Xuất link ảnh CSV</button></div>
+<button id="clear" class="danger">Xóa dữ liệu trên Chrome</button>
+<p class="note">Chỉ ghi nhận các URL hồ sơ thực sự xuất hiện trong danh sách reaction đang mở. Không thu thập cookie, mật khẩu, bạn bè hay bài viết cá nhân. Facebook có thể chỉ tải một phần danh sách.</p>
+</main><script src="lib.js"></script><script src="popup.js"></script></body></html>

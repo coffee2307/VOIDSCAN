@@ -1,5 +1,7 @@
 # VOIDSCAN 3.0 — Guided Reaction Integrity Research Preview
 
+**Chrome extension v0.1.0 (new, no page-admin permission):** Load unpacked folder `F:\VOIDSCAN\chrome-extension` in the existing logged-in Chrome to collect URLs shown in an opened Facebook photo reaction dialog, grouped by Photo ID and reaction type, and export CSV/JSON compatible with Excel. Supports explicit bounded scrolling, deduplication per photo, and visible album photo links. It does not touch tokens/cookies, query hidden Facebook APIs, infer bots, or assert full coverage. Read [Extension README](chrome-extension/README.md).
+
 **Chrome + Playwright on Windows (opt-in):** Run `setup-voidscan-facebook.bat` to open a dedicated Chrome window where you manually sign in to Facebook. This setup uses an isolated profile in `%LOCALAPPDATA%`, not your personal Chrome profile, and does not export cookies, passwords or MFA codes. The browser is opened, not a completed 38-photo scan or validated bot detector. Read [Facebook Chrome setup](docs/FACEBOOK_BROWSER_SETUP.md).
 
 **Live monitoring cadence fix:** the running server now checks for due active watches approximately every 30 seconds, but calls Meta at most once per configured 10-minute interval per watched object, taking recent manual scans into account. Restarting VOIDSCAN does not reset the next-due timer. This does not run while the server is closed, and does not imply account-level bot identification. See [Monitoring Readiness](docs/R1_MONITOR_READINESS.md).
