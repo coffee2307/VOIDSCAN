@@ -1,11 +1,11 @@
 (() => {
 "use strict";
 const $=id=>document.getElementById(id);
-const FILE=window.VoidscanFileAudit,LIB=window.VoidscanAudit, XLSX=window.VoidscanXlsx;
+const FILE=window.VoidscanFileAudit,LIB=window.VoidscanAudit, XLSX=window.VoidscanXlsx,INTEGRITY=window.VoidscanIntegrity;
 const STORAGE_REACTIONS="voidscan_reactions_v1",STORAGE_PENDING="voidscan_pending_reactions_v1";
-const STORAGE_DECISIONS="voidscan_screening_reviews_v1",MAX_CSV_BYTES=15*1024*1024;
+const STORAGE_DECISIONS="voidscan_screening_reviews_v1",STORAGE_COUNTS="voidscan_visible_reaction_counts_v2",MAX_CSV_BYTES=15*1024*1024;
 let scanToken=0,source=[],allSource=[],sourceOrigin="",profiles=[],results=[],byUrl=new Map(),chosen="",decisionMap={};
-let sourceLabel="Dữ liệu trong Chrome";
+let sourceLabel="Dữ liệu trong Chrome",integrityReport=null;
 let currentProgress={done:0,total:0,flagged:0,clear:0};
 const fmt=n=>Number(n||0).toLocaleString("vi-VN");
 const msg=text=>{$("toast").textContent=text;};
@@ -84,6 +84,36 @@ function setLast(p){
  $("last-scanned").style.color=p.status===FILE.LABEL_SUSPECT?"#ffb1bd":"#9cedbd";
 }
 async function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+async function showIntegrity(records,origin){
+ const isChrome=origin.startsWith("Dữ liệu trong Chrome");
+ const stored=isChrome?await chrome.storage.local.get(STORAGE_COUNTS):{};
+ const report=INTEGRITY.audit(records,isChrome?(stored[STORAGE_COUNTS]||{}):{});
+ integrityReport=report;
+ $("duplicate-rows").textContent=fmt(report.totals.duplicates);
+ $("unknown-rows").textContent=fmt(report.totals.unknown);
+ const table=$("integrity-rows");table.replaceChildren();
+ for(const p of report.photos){
+  const tr=document.createElement("tr");
+  const cells=[p.photoId,...LIB.types.map(k=>p.counts[k]),p.uniqueAccounts];
+  const measured=LIB.types.map(k=>p.coverage[k]).filter(Boolean);
+  const comparable=measured.reduce((a,v)=>a+v.displayed,0);
+  const seen=measured.reduce((a,v)=>a+v.observed,0);
+  const ratio=measured.length?fmt(seen)+" / "+fmt(comparable)+
+    (comparable?" ("+Math.round(100*seen/comparable)+"%)":""):
+    "Chưa có số gốc";
+  cells.push(ratio);
+  for(const value of cells)tr.append(safeText("td",value));
+  table.append(tr);
+ }
+ if(!report.photos.length){const tr=document.createElement("tr");const td=safeText("td","Không có URL reaction hợp lệ.");td.colSpan=8;tr.append(td);table.append(tr);}
+ $("integrity-explanation").textContent="Đếm "+fmt(report.totals.uniquePhotoReactions)+
+   " tương tác có loại xác định (URL duy nhất trong từng ảnh), "+fmt(report.totals.duplicates)+
+   " dòng trùng, "+fmt(report.totals.conflicts)+" xung đột loại reaction (chưa rõ thời điểm sẽ không cộng vào loại cụ thể); "+
+   fmt(report.totals.unknown)+" dòng chưa rõ loại không được cộng điểm. "+
+   (isChrome?"Chỉ đối soát số hiển thị khi Chrome đã lưu số đó.":"CSV tải lên không cung cấp số reaction hiển thị để đối soát.")+
+   " Đây KHÔNG phải số tài khoản ảo hay tỷ lệ phát hiện bot.";
+ return report;
+}
 async function scan(data,origin){
  const ticket=++scanToken;
  source=data;
@@ -95,6 +125,7 @@ async function scan(data,origin){
  $("last-scanned").textContent="Đang đọc dữ liệu...";
  try{
   const prepared=FILE.prepare(data);
+  await showIntegrity(prepared.rows,origin);
   profiles=prepared.profiles;
   currentProgress={total:profiles.length,done:0,flagged:0,clear:0};
   $("photos").textContent=fmt(prepared.photoTotal);
@@ -179,6 +210,26 @@ async function loadFile(file){
 function allRows(flaggedOnly){
  return results.filter(p=>!flaggedOnly||p.status===FILE.LABEL_SUSPECT);
 }
+function exportIntegrity(){
+ if(!integrityReport||!integrityReport.photos.length){msg("Chưa có dữ liệu đối soát để xuất.");return;}
+ const columns=["Photo ID","LIKE","LOVE","CARE","HAHA","WOW","URL duy nhất","Trùng","Xung đột reaction","Chưa phân giải xung đột","Chưa rõ loại","Loại bị loại trừ","Đã quan sát có số gốc","Số gốc Facebook","Ghi chú"];
+ const records=integrityReport.photos.map(p=>{
+  const measured=LIB.types.map(k=>p.coverage[k]).filter(Boolean);
+  const seen=measured.reduce((n,x)=>n+x.observed,0);
+  const displayed=measured.reduce((n,x)=>n+x.displayed,0);
+  const note=measured.length?(seen>displayed?"Lớn hơn số gốc; kiểm tra thời điểm ghi dữ liệu":"Số gốc và dữ liệu thu thập có thể khác thời điểm"):
+   "Chưa có bộ đếm Facebook để đối soát";
+  const values=[p.photoId,...LIB.types.map(k=>p.counts[k]),p.uniqueAccounts,p.duplicates,p.conflicts,p.ambiguousAccounts,p.unknown,p.excluded,measured.length?seen:"",measured.length?displayed:"",note];
+  return Object.fromEntries(columns.map((k,i)=>[k,values[i]]));
+ });
+ const file=new Blob([LIB.csv(records,columns)],{type:"text/csv;charset=utf-8"});
+ const url=URL.createObjectURL(file);
+ const a=document.createElement("a");a.href=url;
+ a.download="VOIDSCAN_DOI_SOAT_ANH_"+new Date().toISOString().replace(/[:.]/g,"-").slice(0,19)+".csv";
+ document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),30000);
+ msg("Đã tạo bảng đối soát "+fmt(records.length)+" ảnh. Không suy diễn số tài khoản ảo.");
+}
 function exportFile(filetype,flaggedOnly=false){
  const rows=allRows(flaggedOnly);
  if(!rows.length){msg("Chưa có kết quả để xuất.");return;}
@@ -250,6 +301,7 @@ $("stop").addEventListener("click",()=>{
 $("search").addEventListener("input",drawQueue);
 $("filter").addEventListener("change",drawQueue);
 $("csvall").addEventListener("click",()=>exportFile("csv"));
+$("export-integrity").addEventListener("click",exportIntegrity);
 $("xlsxall").addEventListener("click",()=>exportFile("xlsx"));
 $("save").addEventListener("click",()=>saveReview().catch(e=>msg(e.message)));
 $("next").addEventListener("click",nextProfile);

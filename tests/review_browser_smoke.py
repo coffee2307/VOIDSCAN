@@ -56,7 +56,7 @@ class ImportedCsvBrowser(unittest.TestCase):
     page=browser.new_page(accept_downloads=True,viewport={"width":1250,"height":900})
     page.set_content((EXT/"review.html").read_text(encoding="utf-8"))
     page.evaluate(MOCK)
-    for name in ("lib.js","file-audit.js","xlsx-export.js","review.js"):
+    for name in ("lib.js","file-audit.js","reaction-integrity.js","xlsx-export.js","review.js"):
      page.add_script_tag(path=str(EXT/name))
     page.wait_for_function('document.getElementById("total").textContent==="1"',timeout=12000)
     self.assertEqual(page.locator("#total").inner_text(),"1")
@@ -77,6 +77,11 @@ class ImportedCsvBrowser(unittest.TestCase):
     self.assertEqual(page.locator(".queuebutton").count(),1)
     self.assertIn("Nghi vấn",page.locator(".queuebutton").first.inner_text())
     self.assertEqual(page.locator("#progress-track").get_attribute("aria-valuenow"),"100")
+    with page.expect_download(timeout=15000) as get_integrity:
+      page.locator("#export-integrity").click()
+    integrity=get_integrity.value.path().read_text(encoding="utf-8-sig")
+    self.assertIn("Photo ID,LIKE,LOVE,CARE,HAHA,WOW",integrity)
+    self.assertIn(PHOTOIDS[0],integrity)
     with page.expect_download(timeout=15000) as get_csv:
       page.locator("#csvall").click()
     text=get_csv.value.path().read_text(encoding="utf-8-sig")

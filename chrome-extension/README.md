@@ -1,4 +1,15 @@
-# VOIDSCAN Reaction Audit — Chrome Extension 0.4.1
+# VOIDSCAN Reaction Audit — Chrome Extension 0.4.2
+
+## 0.4.2 — Kiểm toán số phản ứng theo ảnh (offline)
+
+- Bảng **Đối soát số lượng tương tác theo ảnh**: Like, Love, Care, Haha, Wow theo từng Photo ID; mỗi URL tài khoản chỉ được cộng một lần trên mỗi ảnh.
+- Báo rõ dòng lặp, xung đột loại reaction và reaction chưa rõ loại. Khi cùng một URL có các bản ghi ở thời điểm khác nhau, ưu tiên bản ghi mới hơn nếu thời điểm hợp lệ; không cộng hai lần.
+- Nếu dữ liệu Chrome có số reaction hiển thị từ tab Facebook, đối chiếu số thu thập/số hiển thị. Tỷ lệ này là **độ bao phủ của dữ liệu đã ghi**, không phải độ chính xác phát hiện bot; dữ liệu chụp ở những thời điểm khác nhau có thể lệch.
+- Có nút **Xuất CSV đối soát ảnh** để lưu bảng đếm và chất lượng dữ liệu, tách biệt báo cáo sàng lọc hồ sơ.
+- Việc lưu trữ và phân loại ở máy cục bộ; không tự mở hàng loạt hồ sơ người khác, không xác nhận bot hoặc tự loại lượt bình chọn. Những tín hiệu hành vi hiện có chỉ giúp **ưu tiên kiểm tra thủ công**.
+- Test: `node chrome-extension/test-reaction-integrity.cjs`, `python tests/review_browser_smoke.py`, kiểm thử extension cũ.
+
+**Cập nhật:** Mở `chrome://extensions` và nhấn Reload ở VOIDSCAN. Mở lại tab kiểm toán. Không xóa dữ liệu đã thu thập.
 
 ## Hotfix 0.4.1 — Tách từng ảnh và làm rõ phạm vi kiểm toán
 

@@ -11,6 +11,7 @@
   <div class="topactions">
     <button id="source-local">Lấy dữ liệu từ tiện ích</button>
     <button id="csvall" type="button">Xuất CSV kết quả</button>
+    <button id="export-integrity" type="button">Xuất CSV đối soát ảnh</button>
     <button id="xlsxall" type="button" class="primary">Xuất Excel đẹp (.xlsx)</button>
   </div>
 </header>
@@ -44,11 +45,18 @@
     <div><small>Đã phân tích CSV</small><strong id="checked">0</strong></div>
     <div><small>Số ảnh trong file</small><strong id="photos">0</strong></div>
     <div><small>Hồ sơ Facebook đã mở để kiểm tra</small><strong>0</strong></div>
+    <div><small>Phản ứng trùng trong tệp gốc</small><strong id="duplicate-rows">0</strong></div>
+    <div><small>Loại phản ứng chưa rõ</small><strong id="unknown-rows">0</strong></div>
   </section>
   <p id="notice" class="notice">
   Hệ thống CHỈ phân tích thông tin có trong CSV, chưa kiểm tra nội dung trang cá nhân, bạn bè, nơi ở hoặc lịch sử hoạt động.
   “Không có dấu hiệu” chỉ có nghĩa không thấy tín hiệu bất thường trong dữ liệu đã cung cấp; không phải xác nhận tài khoản thật.
   </p>
+  <section class="panel integrity-panel" aria-label="Đối soát số lượng reaction theo từng ảnh">
+    <div class="section-title"><h2>Đối soát số lượng tương tác theo ảnh</h2><span class="small">Chỉ đếm URL hợp lệ, mỗi hồ sơ một lần trên mỗi ảnh</span></div>
+    <p class="small" id="integrity-explanation">Số thu thập là số URL quan sát được, không phải số người thật đã xác minh. Số hiển thị chỉ đối chiếu khi có dữ liệu chụp từ Facebook.</p>
+    <div class="integrity-table-wrap"><table class="integrity-table"><thead><tr><th>Photo ID</th><th>Like</th><th>Love</th><th>Care</th><th>Haha</th><th>Wow</th><th>URL duy nhất</th><th>Độ bao phủ</th></tr></thead><tbody id="integrity-rows"><tr><td colspan="8">Chưa có dữ liệu.</td></tr></tbody></table></div>
+  </section>
   <div class="columns">
     <section class="panel" aria-label="Danh sách kết quả">
       <div class="section-title"><h2>Danh sách tài khoản</h2><span id="listcount" class="muted">0 tài khoản</span></div>
@@ -90,6 +98,7 @@
 </main>
 <script src="lib.js"></script>
 <script src="file-audit.js"></script>
+<script src="reaction-integrity.js"></script>
 <script src="xlsx-export.js"></script>
 <script src="review.js"></script>
 </body></html>
