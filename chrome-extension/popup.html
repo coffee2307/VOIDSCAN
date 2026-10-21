@@ -1,10 +1,33 @@
-<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="popup.css"><title>VOIDSCAN Reaction Audit</title></head><body>
-<header><strong>VOIDSCAN</strong> <span>Reaction Audit</span><p>Kiểm kê reaction trên các ảnh Facebook</p></header>
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VOIDSCAN Reaction Audit</title><link rel="stylesheet" href="popup.css"></head>
+<body>
+<header>
+  <div class="top"><span class="brand">VOIDSCAN <em>Reaction Audit</em></span><button id="home" title="Home">⌂ Home</button></div>
+  <p>Kiểm toán tương tác Facebook · cục bộ trên Chrome</p>
+</header>
 <main>
-<div class="metrics"><div><strong id="photos">0</strong><small>Ảnh có dữ liệu</small></div><div><strong id="records">0</strong><small>Reaction đã ghi</small></div></div>
-<button id="activate" class="primary">Mở bảng thu thập trên tab Facebook</button>
-<p id="status" role="status">Chỉ hoạt động trên tab Facebook hiện tại.</p>
-<div class="actions"><button id="csv">Xuất danh sách CSV</button><button id="summary">Xuất tổng hợp CSV</button><button id="json">Xuất JSON</button><button id="photo-links">Xuất link ảnh CSV</button></div>
-<button id="clear" class="danger">Xóa dữ liệu trên Chrome</button>
-<p class="note">Chỉ ghi nhận các URL hồ sơ thực sự xuất hiện trong danh sách reaction đang mở. Không thu thập cookie, mật khẩu, bạn bè hay bài viết cá nhân. Facebook có thể chỉ tải một phần danh sách.</p>
-</main><script src="lib.js"></script><script src="popup.js"></script></body></html>
+  <div class="metrics">
+    <div><strong id="photos">0</strong><small>Ảnh đã quét</small></div>
+    <div><strong id="records">0</strong><small>Hồ sơ</small></div>
+  </div>
+  <div id="home-view">
+    <button id="activate" class="primary">Mở bảng điều khiển kéo thả trên Facebook</button>
+    <p class="hint">Trên ảnh Facebook, mở danh sách reaction và chọn <b>Quét tự động cả 5 loại cảm xúc</b>. Bảng nổi có nút Home, CSV, dừng và thanh tiến độ.</p>
+    <div class="actions">
+      <button id="csv">Xuất danh sách CSV</button><button id="summary">Xuất tổng hợp CSV</button>
+      <button id="json">Xuất JSON</button><button id="photo-links">Xuất link ảnh CSV</button>
+    </div>
+    <button id="details" class="secondary">Xem các trường dữ liệu hỗ trợ</button>
+    <button id="clear" class="danger">Xóa dữ liệu trên Chrome</button>
+  </div>
+  <section id="fields-view" hidden>
+    <h3>Trường dữ liệu có thể đọc</h3>
+    <p>User ID, Username, tên hiển thị, Reaction Type, Avatar URL, Friendship Status, Subscribe Status, Mutual Friends Number, Profile URL và thời điểm ghi nhận.</p>
+    <p>Trường không hiển thị trong danh sách reaction sẽ để trống; không truy cập các trang cá nhân.</p>
+    <button id="back">← Về Home</button>
+  </section>
+  <p id="status" role="status">Sẵn sàng.</p>
+  <p class="footnote">Dữ liệu lưu cục bộ, không dùng token Meta hoặc lấy cookie. Không gán nhãn bot chỉ từ hồ sơ cá nhân.</p>
+</main>
+<script src="lib.js"></script><script src="popup.js"></script>
+</body></html>

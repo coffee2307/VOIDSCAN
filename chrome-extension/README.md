@@ -1,59 +1,46 @@
-# VOIDSCAN Reaction Audit — Chrome Extension 0.1.0
+# VOIDSCAN Reaction Audit — Chrome Extension 0.2.0
 
-## Tại sao là extension mới?
+## Các thay đổi so với bản 0.1.0
 
-Đã kiểm tra gói người dùng cung cấp: Reaction Exporter 1.3.0, Chrome Manifest V3. Extension đó có quyền cookies, identity, host permission Facebook trên mọi tab và nhiều đoạn mã minified kết nối tới máy chủ bên thứ ba. VOIDSCAN **không chép lại mã hay cài bản đó**; đây là tiện ích độc lập, viết mới, không đăng ký dịch vụ ConvLead, không token Meta và không phụ thuộc quyền quản trị Page.
+- **Quét tự động 5 loại cảm xúc** trên ảnh đang mở: extension cố gắng chọn các tab Like, Love, Care, Haha, Wow và tự cuộn danh sách của từng loại. Không cần chọn loại và bấm đọc lại sau từng lần cuộn.
+- **Tự dừng khi danh sách hết dữ liệu** hoặc khi đạt giới hạn 180 lượt cuộn/tab và 10 phút/lần quét. Có nút dừng bằng tay.
+- **Bảng nổi kéo thả** bằng thanh tiêu đề; nút Home, CSV, thu nhỏ, đóng và thanh tiến độ. Popup Chrome gắn vào thanh công cụ không thể kéo; bảng nổi trên trang Facebook mới có thể kéo.
+- Trường dữ liệu bổ sung: User ID, Username, Display Name, Reaction Type, Avatar URL, Friendship Status, Subscribe Status, Mutual Friends Number, Profile URL, Photo ID, Photo URL, thời điểm ghi nhận.
+- Chỉ đọc những trường hiển thị rõ trong dòng reaction trên Facebook. Trường bị ẩn để trống, không truy cập trang cá nhân để tìm hoặc suy đoán.
+- Popup có Home, xuất CSV chi tiết và tổng hợp, xuất JSON và liên kết ảnh. Giữ tương thích các bản ghi 0.1, không tự xóa dữ liệu cũ.
 
-Bản đầu chỉ cần: activeTab, scripting, storage và downloads. Không yêu cầu cookies, identity, debugger, webRequest hay host_permissions toàn Facebook. Mã chạy trên trang Facebook **chỉ sau khi người dùng chủ động bấm nút kích hoạt**. Không có request upload hoặc hệ thống máy chủ gửi dữ liệu.
+## Cập nhật extension đã cài
 
-## Cài đặt tại Chrome cá nhân đang đăng nhập
+1. Trong Chrome cá nhân đã đăng nhập Facebook, mở trang chrome://extensions.
+2. Bật Developer Mode nếu cần.
+3. Tìm VOIDSCAN Reaction Audit và nhấn Reload. Không cần gỡ cài đặt hay đăng nhập Facebook lần nữa.
+4. Tải lại tab Facebook bằng Ctrl+R, bấm icon extension rồi chọn mở bảng điều khiển.
+5. Kiểm tra phiên bản hiển thị 0.2.0.
 
-1. Mở Chrome đang dùng, nhập chrome://extensions vào thanh địa chỉ.
-2. Bật Developer mode / Chế độ dành cho nhà phát triển.
-3. Bấm Load unpacked / Tải tiện ích đã giải nén.
-4. Chọn đúng thư mục F:\VOIDSCAN\chrome-extension (thư mục chứa manifest.json).
-5. Ghim biểu tượng VOIDSCAN Reaction Audit trên thanh công cụ nếu muốn.
+Mã nguồn extension ở F:\VOIDSCAN\chrome-extension.
 
-Không cần đăng xuất Facebook, không sử dụng Chrome Playwright riêng bị kẹt Arkose.
+## Hướng dẫn cho cuộc thi 38 ảnh
 
-## Cách dùng cho cuộc thi THPT Dĩ An
+1. Mở bài đăng và chọn ảnh riêng cần kiểm toán.
+2. Nhấp vào **số reaction** của ảnh để mở danh sách người đã tương tác. Đây là thao tác chủ động, không tự bấm nút thả Like hoặc phản ứng của chính người dùng.
+3. Trong bảng nổi VOIDSCAN, bấm **Quét tự động cả 5 loại cảm xúc**. Extension sẽ tự chuyển các tab mà Facebook hiển thị và tự cuộn. Có thể dừng bất kỳ lúc nào.
+4. Khi hoàn thành, mở ảnh tiếp theo và quét tương tự. **Phiên bản này chưa tự điều hướng hết 38 ảnh từ bài đăng mẹ.** Nút lưu link ảnh chỉ lưu các ảnh đã hiển thị trong giao diện album.
+5. Xuất CSV bằng nút CSV trên thanh tiêu đề bảng nổi hoặc Xuất danh sách CSV trong popup. Tổng hợp CSV phân biệt số hồ sơ quan sát với số reaction hiển thị (nếu đọc được).
 
-Mở bài đăng:
-https://www.facebook.com/tuoitretruongthptdian/posts/pfbid027NL9w2QaKQ3gf7vPztXfczuaaaHi1w6PZUzbSfn8V2w27xMAi6HVJS5LtLumdNkYl
+## Giới hạn
 
-1. Nhấn icon extension > "Mở bảng thu thập trên tab Facebook".
-2. Nếu đang ở bài đăng nhiều ảnh, bấm "Lưu các link ảnh đang hiển thị trong bài". Với phần album ẩn sau +33, mở rộng thêm rồi lặp lại. Extension chỉ lấy các anchor ảnh đã thực sự có trong giao diện; không tự suy đoán rằng đã lấy đủ 38.
-3. Mở từng ảnh riêng từ bài đăng. Mã ảnh được nhận tự động nếu URL chứa fbid. Nếu không nhận, nhập Photo ID số từ link ảnh. **Không nhập ID bài mẹ thay cho ảnh.**
-4. Nhấp vào số reaction của ảnh, trên Facebook chọn một tab loại reaction Like, Love, Care, Haha hoặc Wow.
-5. Trong bảng VOIDSCAN chọn đúng loại đang xem rồi bấm "Đọc danh sách đang mở"; khi có nhiều hồ sơ và Facebook cho cuộn, bấm "Cuộn & đọc" tối đa 20 lượt (khoảng cách 1,2 giây/lượt). Có nút dừng. Với hộp thoại bị Facebook giới hạn, việc cuộn không bảo đảm đủ danh sách.
-6. Lặp lại cho các tab phản ứng và từng ảnh được phép xem. Dữ liệu được lưu trong chrome.storage.local; cùng một URL trên cùng một ảnh chỉ giữ một bản ghi, nhưng có thể xuất hiện ở nhiều ảnh.
-7. Từ popup, bấm "Xuất danh sách CSV", "Xuất tổng hợp CSV", "Xuất JSON", hoặc "Xuất link ảnh CSV". CSV có BOM UTF-8 và mở được bằng Excel. Mỗi file được tạo tại thời điểm bạn chủ động xuất.
+- Không đồng nhất số hồ sơ thu được với tổng số lượt reaction. Facebook có thể chỉ hiển thị một phần danh sách, còn thiếu nhiều người.
+- Không cần quyền quản trị Page hoặc token Meta. Không dùng API ẩn, không vượt CAPTCHA, tường đăng nhập hay hạn chế quyền Facebook.
+- Trạng thái quan hệ, avatar, tên và số bạn chung không phải tiêu chí kết luận bot. Không tự gán nhãn bot, không trừ điểm.
+- URL, tên, hình đại diện là dữ liệu cá nhân; chỉ sử dụng trong kiểm toán nội bộ phù hợp, không tải công khai lên GitHub.
+- Facebook thường thay đổi cấu trúc DOM. Bộ kiểm thử là giao diện mô phỏng, không bảo đảm selector hoạt động với mọi phiên Facebook thật.
 
-Các cột CSV tài khoản: photoId, photoUrl, profileUrl, reaction, capturedAt. Không thu thập tên hiển thị, bạn bè, số điện thoại, email, nội dung trang cá nhân, hồ sơ bị ẩn hoặc danh sách không được phép truy cập.
+## Bài kiểm thử
 
-## Không phải bộ phát hiện bot
-
-- Đây là công cụ ghi nhận URL hồ sơ từ danh sách reaction **đã được Facebook cho hiển thị trong phiên đang đăng nhập**, không phải nguồn dữ liệu chính thức của Facebook.
-- Nếu giao diện chỉ tải 120 hồ sơ trong số 800 reaction, kết quả là 120 hồ sơ quan sát được; không được tuyên bố đủ 800.
-- Tính điểm Like/Love/Care/Haha/Wow = 1 cho mỗi reaction được quan sát. Không tự thêm điểm chia sẻ, không tính Sad/Angry.
-- Không tự kết luận người tham gia là bot từ URL hoặc trang cá nhân trống; muốn xử lý gian lận cần bằng chứng độc lập và Ban tổ chức xác minh.
-- Thu thập có giới hạn, không sử dụng API ẩn, không tìm cách vượt CAPTCHA, login wall, giới hạn tải hoặc truy cập riêng tư.
-- Các selector có thể thay đổi khi Facebook cập nhật. Nếu hộp thoại reaction không được tìm thấy, cần chỉnh code dựa trên giao diện hiện hành.
-- Không tự quét đầy đủ 38 ảnh khi bạn chưa mở và xem từng ảnh. Chức năng chạy thu thập chỉ bắt đầu theo thao tác của bạn.
-
-## Quyền riêng tư và xóa dữ liệu
-
-URL hồ sơ là dữ liệu cá nhân dù hiển thị công khai; phải dùng đúng mục đích kiểm toán đã được cho phép, hạn chế chia sẻ và xóa khi không còn cần thiết. Nút "Xóa dữ liệu trên Chrome" trong popup xóa cả danh sách reaction lẫn danh sách link ảnh đã lưu. Cài lại Chrome/extension có thể làm mất dữ liệu chưa xuất. Tuyệt đối không đăng dữ liệu tài khoản lên GitHub.
-
-Không gửi cookie, token Facebook, mã OTP, credential, nội dung các trang cá nhân hay kết quả bí mật đến dịch vụ bên ngoài.
-
-## Kiểm thử và nguồn mã
-
-Mã viết mới nằm trong chrome-extension/, không dùng file JS/CSS/font của Reaction Exporter 1.3.0.
-
+    node chrome-extension/test-lib.cjs
     node --check chrome-extension/lib.js
     node --check chrome-extension/content.js
     node --check chrome-extension/popup.js
-    node chrome-extension/test-lib.cjs
+    .\.venv\Scripts\python.exe tests\extension_browser_smoke.py
 
-Các bài test chứng minh cú pháp, lọc URL, tránh công thức CSV và quyền extension. Chúng không chứng minh khả năng lấy đủ hồ sơ trên giao diện Facebook thật.
+Extension không có quyền cookies, identity, debugger hoặc quyền host toàn Facebook. Script chỉ hoạt động trên tab được người dùng chủ động kích hoạt; dữ liệu lưu trong chrome.storage.local, không upload tới bên thứ ba.
