@@ -35,7 +35,19 @@ root.VoidscanCaptureCurrentProfile=async function(){
    .map(v=>{const ts=Date.parse(v);return Number.isFinite(ts)?new Date(ts).toISOString().slice(0,10):"";})
    .filter(Boolean).sort().reverse();
  const latestVisiblePostAt=dates[0]||"";
- if(!avatar&&!locationText&&mutualCount===null&&!latestVisiblePostAt)
+ // Optional, strictly visible declarations on the page opened by the user.
+ // The whole page is never stored. No friends list or post text is retained.
+ let educationText="";
+ for(const line of lines){
+   const match=line.match(/^(?:đã học tại|học tại|studied at|studies at|went to)\s*[:：]?\s*(.{3,90})$/i);
+   if(match&&!/@|https?:|\d{5,}/i.test(match[1])){educationText=match[1].trim();break;}
+ }
+ const friendsMatch=visibleText.match(/(?:^|\n)\s*([\d.,]{1,12})\s*(?:bạn bè|friends)(?:\s|$)/i);
+ const parsedFriends=friendsMatch?Number(friendsMatch[1].replace(/[^\d]/g,"")):NaN;
+ const friendsCount=Number.isSafeInteger(parsedFriends)&&parsedFriends>=0&&parsedFriends<=100000?parsedFriends:null;
+ const joinedMatch=visibleText.match(/(?:đã tham gia facebook\s*(?:vào\s*)?(?:năm\s*)?|joined facebook\s*(?:in\s*)?)(20\d{2})/i);
+ const joinedYear=joinedMatch?Number(joinedMatch[1]):null;
+ if(!avatar&&!locationText&&mutualCount===null&&!latestVisiblePostAt&&!educationText&&friendsCount===null&&!joinedYear)
    return {saved:false,reason:"Trang hiện chưa hiển thị tín hiệu cần thiết; không suy đoán trường thiếu."};
  const key="voidscan_profile_observations_v1";
  const old=(await chrome.storage.local.get(key))[key]||{};
@@ -44,6 +56,9 @@ root.VoidscanCaptureCurrentProfile=async function(){
  if(avatar)record.hasAvatar="1";
  if(locationText)record.currentCity=locationText;
  if(mutualCount!==null)record.mutualFriendsNumber=String(mutualCount);
+ if(educationText){record.education=educationText;record.hasEducation="1";}
+ if(friendsCount!==null)record.friendsCount=String(friendsCount);
+ if(joinedYear&&joinedYear<=new Date().getFullYear())record.joinedYear=String(joinedYear);
  if(latestVisiblePostAt){
    record.latestVisiblePostAt=latestVisiblePostAt;
    record.visiblePostDateCount=String(dates.length);
@@ -54,6 +69,8 @@ root.VoidscanCaptureCurrentProfile=async function(){
  old[meta.profileUrl]=record;
  await chrome.storage.local.set({[key]:old});
  return {saved:true,hasAvatar:!!avatar,hasCurrentCity:!!locationText,
-   hasMutualCount:mutualCount!==null,hasVisiblePostDate:!!latestVisiblePostAt};
+   hasMutualCount:mutualCount!==null,hasVisiblePostDate:!!latestVisiblePostAt,
+   hasEducation:!!educationText,hasFriendsCount:friendsCount!==null,
+   hasJoinedYear:!!joinedYear};
 };
 })(typeof globalThis!=="undefined"?globalThis:this);

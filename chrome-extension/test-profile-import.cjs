@@ -63,4 +63,17 @@ assert.equal(temporalScore.mutualFriendsNumber,3);
 assert.equal(temporalScore.latestVisiblePostAt,"2024-01-01");
 assert.equal(temporalScore.status,"nghi vấn");
 assert(temporalScore.evidence.includes("mốc ngày cũ"));
+const mergedEvidence=importProfile.enrich([
+ {photoId:photo,profileUrl:url(88),reaction:"LOVE"}
+],[
+ {profileUrl:url(88),currentCity:"Hà Nội",hasAvatar:"1"},
+ {profileUrl:url(88),education:"THPT Ví Dụ",joinedYear:"2018",source:"observed_open_profile"}
+]);
+assert.equal(mergedEvidence.matchedRows,1);
+const annotated=audit.scoreProfile(audit.prepare(mergedEvidence.rows).profiles[0],1,{});
+assert.equal(annotated.regionContext,"other");
+assert.equal(annotated.avatarEvidence,"present");
+assert.equal(annotated.educationObserved,"THPT Ví Dụ");
+assert.equal(annotated.joinedYear,"2018");
+assert.equal(annotated.profileDataSource,"observed_open_profile");
 console.log("VOIDSCAN profile evidence join, region tri-state, no false absence: PASS");

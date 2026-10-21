@@ -110,6 +110,7 @@ function prepare(raw){
        photoIds:new Set(),reactions:new Set(),perPhoto:new Map(),
        fields:new Set(),profileFlagsObserved:new Set(),friendsCount:null,followingCount:null,
        mutualFriendsNumber:null,latestVisiblePostAt:"",visiblePostDateCount:null,
+       joinedYear:"",educationObserved:"",
        rawRows:0,unknownRows:0,sourceRows:[]};
      profiles.set(r.profileUrl,item);
    }
@@ -144,6 +145,9 @@ function prepare(raw){
    if(mutual!==null)item.mutualFriendsNumber=mutual;
    if(/^20\d{2}-\d{2}-\d{2}$/.test(String(r.latestVisiblePostAt||"")))
      item.latestVisiblePostAt=r.latestVisiblePostAt;
+   if(/^20\d{2}$/.test(String(r.joinedYear||"")))item.joinedYear=r.joinedYear;
+   if(typeof r.educationObserved==="string"&&r.educationObserved.trim())
+     item.educationObserved=r.educationObserved.trim().slice(0,90);
    const postDates=numberOrNull(r.visiblePostDateCount);
    if(postDates!==null)item.visiblePostDateCount=postDates;
  }
@@ -198,7 +202,7 @@ function scoreProfile(p,photoTotal,decision){
  const metadataObserved=p.avatarEvidence!=="unknown"||
    p.regionContext!=="unknown"||p.profileFlagsObserved.size>0||
    p.friendsCount!==null||p.followingCount!==null||
-   p.mutualFriendsNumber!==null||Boolean(p.latestVisiblePostAt);
+   p.mutualFriendsNumber!==null||Boolean(p.latestVisiblePostAt)||Boolean(p.joinedYear);
  const behavioralObserved=photoTotal>=4||conflicts.length>0;
  const sufficient=metadataObserved||behavioralObserved;
  const classification=suspected?LABEL_SUSPECT:
@@ -209,6 +213,7 @@ function scoreProfile(p,photoTotal,decision){
 
    avatarEvidence:p.avatarEvidence||"unknown",regionContext:p.regionContext||"unknown",
    mutualFriendsNumber:p.mutualFriendsNumber??"",
+   educationObserved:p.educationObserved||"",joinedYear:p.joinedYear||"",
    latestVisiblePostAt:p.latestVisiblePostAt||"",
    visiblePostDateCount:p.visiblePostDateCount??"",
    profileDataSource:p.profileDataSource||"not_collected",dataQuality:quality.join(" | "),
@@ -239,6 +244,8 @@ const COLUMNS=[
  {key:"regionContext",label:"Địa phương: local/other/unknown"},
  {key:"profileDataSource",label:"Nguồn dữ liệu hồ sơ"},
  {key:"mutualFriendsNumber",label:"Số bạn chung quan sát được"},
+ {key:"educationObserved",label:"Trường học tự khai nhìn thấy"},
+ {key:"joinedYear",label:"Năm tham gia Facebook nhìn thấy"},
  {key:"latestVisiblePostAt",label:"Mốc bài đăng công khai mới nhất đã thấy"},
  {key:"visiblePostDateCount",label:"Số mốc bài đăng đã quan sát"},
  {key:"localRuleApplied",label:"Quy tắc địa phương"},

@@ -6,6 +6,8 @@ URL="https://www.facebook.com/profile.php?id=100000000123"
 HTML="""<html lang="vi"><head><meta charset="utf-8"><title>Test user</title></head>
 <body><img alt="Ảnh đại diện" src="https://scontent.fsgn2-1.fna.fbcdn.net/test.jpg"
 style="width:120px;height:120px"><p>Sống tại Dĩ An, Bình Dương</p><div>3 bạn chung</div>
+<div>Học tại Trường THPT Ví Dụ</div><div>145 bạn bè</div>
+<div>Đã tham gia Facebook năm 2018</div>
 <article><time datetime="2024-05-03T00:00:00Z">3/5/2024</time></article>
 <article><time datetime="2024-06-14T00:00:00Z">14/6/2024</time></article>
 </body></html>"""
@@ -37,6 +39,9 @@ with sync_playwright() as p:
   assert record["mutualFriendsNumber"]=="3",record
   assert record["latestVisiblePostAt"]=="2024-06-14",record
   assert record["visiblePostDateCount"]=="2",record
+  assert record["education"]=="Trường THPT Ví Dụ",record
+  assert record["friendsCount"]=="145",record
+  assert record["joinedYear"]=="2018",record
   assert not any(k in record for k in ["birthday","gender","email","phone"]),record
   print("VOIDSCAN user-opened profile observation browser smoke: PASS")
  finally:

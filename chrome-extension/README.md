@@ -1,4 +1,15 @@
-# VOIDSCAN Reaction Audit — Chrome Extension 0.6.1
+# VOIDSCAN Reaction Audit — Chrome Extension 0.6.2
+
+## 0.6.2 — Tăng trường dữ liệu trên hồ sơ do người dùng mở
+
+- Khi một hồ sơ Facebook được người dùng mở trực tiếp và bấm Ghi nhận trang đã mở, VOIDSCAN thử đọc **trường học được tự khai**, **số bạn bè hiển thị**, **năm tham gia Facebook nếu hiển thị rõ**, bổ sung vào avatar, địa điểm tự khai, số bạn chung và mốc ngày của bài đăng công khai.
+- Các trường này được nối vào bảng hồ sơ và CSV/Excel. Không có nội dung rõ ràng thì ghi chưa thấy/chưa biết, không suy diễn từ URL hay tên.
+- Hồ sơ có cả CSV bổ sung và quan sát trực tiếp được ghép theo thuộc tính không rỗng; nguồn mới không được phép xóa các thuộc tính đã quan sát.
+- Không lấy email, số điện thoại, ngày sinh, giới tính, danh sách bạn bè, toàn bộ nội dung bài đăng hay dữ liệu riêng tư.
+- **Chưa phải crawler tự đọc sâu tất cả URL.** Auto Audit toàn bộ vẫn dùng metadata công khai không có cookie. Đọc trang đang mở vẫn yêu cầu thao tác chủ động.
+- Mẫu kiểm thử giả lập và bộ kiểm thử hồi quy không bảo đảm các nhãn Facebook thực tế luôn giống mẫu.
+
+
 
 ## 0.6.1 — Sửa kết quả 0 nghi vấn khi dữ liệu hồ sơ chưa được thu thập
 

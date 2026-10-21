@@ -26,6 +26,7 @@ function normalizeRow(raw){
   mutualFriendsNumber:first("mutualFriendsNumber","mutualFriends"),
   latestVisiblePostAt:first("latestVisiblePostAt"),
   visiblePostDateCount:first("visiblePostDateCount"),
+  joinedYear:first("joinedYear","yearJoined"),
   source:first("source","profileDataSource")
  };
 }
@@ -60,7 +61,10 @@ function observe(c){
   mutualFriendsNumber:c.mutualFriendsNumber||"",
   latestVisiblePostAt:/^20\d{2}-\d{2}-\d{2}$/.test(c.latestVisiblePostAt||"")?
     c.latestVisiblePostAt:"",
-  visiblePostDateCount:c.visiblePostDateCount||""
+  visiblePostDateCount:c.visiblePostDateCount||"",
+  educationObserved:c.education?c.education.slice(0,90):"",
+  joinedYear:/^20\d{2}$/.test(String(c.joinedYear||""))&&
+    Number(c.joinedYear)<=new Date().getFullYear()?String(c.joinedYear):""
  };
  return result;
 }
@@ -69,8 +73,13 @@ function importProfiles(rows){
  for(const raw of Array.isArray(rows)?rows:[]){
   const value=observe(normalizeRow(raw));
   if(!value){skipped++;continue;}
-  map.set(value.profileUrl,value);
-  if(value.userId)map.set("id:"+value.userId,value);
+  const prior=map.get(value.profileUrl)||(value.userId&&map.get("id:"+value.userId));
+  const merged=prior?{...prior}:{};
+  for(const [field,entry] of Object.entries(value)){
+   if(entry!==""&&entry!==null&&entry!==undefined&&entry!=="unknown")merged[field]=entry;
+  }
+  map.set(value.profileUrl,merged);
+  if(value.userId)map.set("id:"+value.userId,merged);
  }
  return {map,sourceAccounts:new Set([...map.values()].map(v=>v.profileUrl)).size,skipped};
 }

@@ -95,6 +95,9 @@ function select(url,redraw=true){
    p.profileDataSource==="observed_open_profile"?"Trang Facebook đang mở":p.profileDataSource==="public_metadata"?"Metadata công khai":"Không có";
  $("mutual-observed").textContent=p.mutualFriendsNumber===""?"Chưa thấy":fmt(p.mutualFriendsNumber);
  $("postdate-observed").textContent=p.latestVisiblePostAt||"Chưa thấy";
+ $("school-observed").textContent=p.educationObserved||"Chưa thấy";
+ $("friends-observed").textContent=p.friendsCount===""?"Chưa thấy":fmt(p.friendsCount);
+ $("joined-observed").textContent=p.joinedYear||"Chưa thấy";
  $("reasons").replaceChildren(safeText("p",p.evidence));
  if(p.dataQuality)$("reasons").append(safeText("p","Chất lượng dữ liệu (không phải bằng chứng bot): "+p.dataQuality,"small"));
  $("decision").value=p.reviewerStatus;
