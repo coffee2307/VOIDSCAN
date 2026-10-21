@@ -1,4 +1,12 @@
-# VOIDSCAN Reaction Audit — Chrome Extension 0.3.0
+# VOIDSCAN Reaction Audit — Chrome Extension 0.3.1
+
+## Sửa lỗi không nhận diện cảm xúc ở v0.3.1
+
+- Khi Facebook mở tab **Tất cả** và không hiển thị icon reaction cho mỗi người, bản cũ có thể báo `0 hồ sơ mới; hàng nghìn chưa xác định reaction` do đếm lặp qua các lần cuộn. Bản 0.3.1 **giữ lại URL duy nhất** với giá trị `reaction=UNKNOWN`, không tính như một reaction có điểm, và có chỉ số `Chưa rõ loại` riêng.
+- Khi chuyển sang tab riêng Like/Love/Care/Haha/Wow và xác minh được loại, hồ sơ `UNKNOWN` được nâng thành phản ứng tương ứng, không ghi trùng một URL trong cùng ảnh.
+- Bộ nhận diện tab hỗ trợ thêm các thuộc tính `aria-pressed`, `aria-current`, `data-state`, các nút trong tablist và các nhãn có tiền tố `Reaction:`/`Cảm xúc:`. Có nút **Kiểm tra nhận diện** trong bảng nổi, chỉ hiển thị số tab và số URL, không in danh sách tài khoản.
+- Nút CSV xuất cả phản ứng đã phân loại và URL chưa rõ loại, những dòng chưa rõ mang nhãn `UNKNOWN` để không nhầm với điểm đã xác minh. Bảng tổng hợp điểm chỉ tính 5 loại hợp lệ.
+- Test tái hiện lỗi danh sách Tất cả đạt; test nâng 3 URL chưa phân loại lên LIKE và test tự quét 5 tab đều đạt trên Chrome mô phỏng.
 
 ## Bổ sung ở phiên bản 0.3.0
 
@@ -24,7 +32,7 @@
 2. Bật Developer Mode nếu cần.
 3. Tìm VOIDSCAN Reaction Audit và nhấn Reload. Không cần gỡ cài đặt hay đăng nhập Facebook lần nữa.
 4. Tải lại tab Facebook bằng Ctrl+R, bấm icon extension rồi chọn mở bảng điều khiển.
-5. Kiểm tra phiên bản hiển thị 0.3.0. Nhấn Xem hồ sơ cần rà soát để mở bảng lọc tự động.
+5. Kiểm tra phiên bản hiển thị 0.3.1. Nếu Facebook chỉ hiển thị tab Tất cả, hãy ưu tiên Quét tự động cả 5 loại cảm xúc hoặc bấm Kiểm tra nhận diện. Nhấn Xem hồ sơ cần rà soát để mở bảng lọc tự động.
 
 Mã nguồn extension ở F:\VOIDSCAN\chrome-extension.
 

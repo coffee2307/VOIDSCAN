@@ -3,6 +3,7 @@
 const $=id=>document.getElementById(id);
 const STORE="voidscan_reactions_v1", PHOTO_STORE="voidscan_photo_links_v1";
 const COUNT_STORE="voidscan_visible_reaction_counts_v2";
+const PENDING_STORE="voidscan_pending_reactions_v1";
 const api=window.VoidscanAudit;
 function status(s){$("status").textContent=s;}
 async function rows(){
@@ -11,6 +12,9 @@ async function rows(){
 }
 async function refresh(){
  const all=await rows();
+ const pendingValue=(await chrome.storage.local.get(PENDING_STORE))[PENDING_STORE];
+ const pending=Array.isArray(pendingValue)?pendingValue:[];
+ $("pending-count").textContent=pending.length.toLocaleString("vi-VN");
  $("records").textContent=all.length.toLocaleString("vi-VN");
  $("photos").textContent=new Set(all.map(x=>x.photoId)).size.toLocaleString("vi-VN");
  const review=window.VoidscanReview;
@@ -42,15 +46,19 @@ async function exportPhotos(){
 }
 async function exportData(mode){
  const all=await rows();
- if(!all.length){status("Chưa có dữ liệu reaction để xuất.");return;}
+ const raw=(await chrome.storage.local.get(PENDING_STORE))[PENDING_STORE];
+ const known=new Set(all.map(r=>r.photoId+"|"+r.profileUrl));
+ const pending=(Array.isArray(raw)?raw:[]).filter(r=>!known.has(r.photoId+"|"+r.profileUrl));
+ if(!all.length&&!pending.length){status("Chưa có URL nào để xuất.");return;}
  const base="VOIDSCAN_reactions_"+stamp();
  if(mode==="json"){
    const counts=(await chrome.storage.local.get(COUNT_STORE))[COUNT_STORE]||{};
    const payload={schema_version:2,source:"facebook_visible_reaction_dialog",
      limitation:"May be partial. User metadata only when visible in current reaction list.",
-     capturedAt:new Date().toISOString(),records:all,displayedCounts:counts};
+     capturedAt:new Date().toISOString(),records:all,unclassifiedRecords:pending,displayedCounts:counts};
    await download(base+".json",JSON.stringify(payload,null,2),"application/json;charset=utf-8");
  }else if(mode==="summary"){
+   if(!all.length){status("Chỉ có URL chưa rõ cảm xúc; chưa thể tính bảng điểm reaction.");return;}
    const summary=api.aggregate(all);
    const display=(await chrome.storage.local.get(COUNT_STORE))[COUNT_STORE]||{};
    for(const row of summary){
@@ -68,7 +76,7 @@ async function exportData(mode){
    const columns=["photoId","photoUrl","profileUrl","userId","username",
      "displayName","reaction","avatarUrl","friendshipStatus","subscribeStatus",
      "mutualFriendsNumber","capturedAt"];
-   await download(base+".csv",api.csv(all,columns),"text/csv;charset=utf-8");
+   await download(base+".csv",api.csv([...all,...pending],columns),"text/csv;charset=utf-8");
  }
 }
 function home(){
@@ -90,12 +98,12 @@ for(const type of ["csv","summary","json"]){
 $("photo-links").addEventListener("click",()=>exportPhotos().catch(()=>status("Không xuất được danh sách ảnh.")));
 $("clear").addEventListener("click",async()=>{
  if(!confirm("Xóa toàn bộ dữ liệu reaction, số hiển thị và link ảnh trên Chrome?"))return;
- await chrome.storage.local.remove([STORE,PHOTO_STORE,COUNT_STORE]);
+ await chrome.storage.local.remove([STORE,PHOTO_STORE,COUNT_STORE,PENDING_STORE]);
  await refresh();
  status("Đã xóa dữ liệu cục bộ.");
 });
 chrome.storage.onChanged.addListener((changes,area)=>{
- if(area==="local"&&changes[STORE])refresh().catch(()=>{});
+ if(area==="local"&&(changes[STORE]||changes[PENDING_STORE]))refresh().catch(()=>{});
 });
 refresh().catch(()=>status("Không đọc được dữ liệu cục bộ."));
 })();

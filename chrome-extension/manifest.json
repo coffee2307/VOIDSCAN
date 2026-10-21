@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "VOIDSCAN Reaction Audit",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Thu thập reaction đang hiển thị, tự ưu tiên rà soát bất thường và xuất CSV",
   "action": {
     "default_title": "VOIDSCAN Reaction Audit",

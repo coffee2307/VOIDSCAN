@@ -6,6 +6,7 @@ window.__voidscanAuditActive=true;
 const STORE="voidscan_reactions_v1";
 const PHOTO_STORE="voidscan_photo_links_v1";
 const COUNT_STORE="voidscan_visible_reaction_counts_v2";
+const PENDING_STORE="voidscan_pending_reactions_v1";
 const MAX_STEPS=180,WAIT_MS=850,MAX_RUN_MS=10*60*1000;
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const root=document.createElement("div");
@@ -31,9 +32,9 @@ panel.innerHTML=[
 '<main id="vmain"><h3 id="vheading">Thu thập reaction tự động</h3>',
 '<div class="info">Mở ảnh Facebook, nhấn vào <b>số lượt cảm xúc</b> để hiện danh sách. Bấm <b>Quét tất cả cảm xúc</b>: extension tự chuyển từng tab và cuộn.</div>',
 '<label for="vphoto">Photo ID (tự nhận khi mở ảnh riêng)</label><input id="vphoto" inputmode="numeric" placeholder="Photo ID từ URL ảnh" maxlength="30">',
-'<div class="actions"><button id="vauto" class="primary">Quét tự động cả 5 loại cảm xúc</button><button id="vcurrent">Quét tab đang mở</button><button id="vlinks">Lưu link ảnh album</button><button id="vstop">Dừng quét</button><button id="vexport">Xuất CSV</button></div>',
+'<div class="actions"><button id="vauto" class="primary">Quét tự động cả 5 loại cảm xúc</button><button id="vcurrent">Quét tab đang mở</button><button id="vlinks">Lưu link ảnh album</button><button id="vstop">Dừng quét</button><button id="vexport">Xuất CSV</button><button id="vdiag">Kiểm tra nhận diện</button></div>',
 '<div class="progress"><div id="vbar"></div></div>',
-'<div class="metrics"><div><strong id="vcount">0</strong>Hồ sơ trên ảnh</div><div><strong id="vall">0</strong>Tổng đã lưu</div></div>',
+'<div class="metrics"><div><strong id="vcount">0</strong>Đã phân loại</div><div><strong id="vall">0</strong>Tổng hợp lệ</div><div><strong id="vpending">0</strong>Chưa rõ loại</div></div>',
 '<p id="vstatus" role="status">Đã sẵn sàng.</p>',
 '<p class="small">User ID, username, avatar, trạng thái bạn bè/theo dõi và số bạn chung chỉ lấy khi hiển thị ngay trong danh sách. Không tự truy cập trang cá nhân. Giới hạn quét 10 phút/lượt.</p></main>'
 ].join("");
@@ -59,6 +60,8 @@ async function updateMetrics(){
  const all=await dataRows(),id=currentPhoto();
  $("vcount").textContent=all.filter(r=>r.photoId===id).length.toLocaleString("vi-VN");
  $("vall").textContent=all.length.toLocaleString("vi-VN");
+ const unclassified=(await chrome.storage.local.get(PENDING_STORE))[PENDING_STORE]||[];
+ $("vpending").textContent=unclassified.length.toLocaleString("vi-VN");
 }
 function dialogInfo(){
  const boxes=[...document.querySelectorAll('[role="dialog"]')].filter(d=>{
@@ -75,14 +78,25 @@ function dialogInfo(){
  return ranked.filter(r=>r.valid).sort((a,b)=>b.score-a.score)[0]?.dialog||null;
 }
 function candidates(dialog){
- return [...dialog.querySelectorAll('[role="tab"],[role="tablist"] [role="button"],[aria-selected]')]
- .filter((el,i,array)=>array.indexOf(el)===i&&el.getClientRects().length>0)
- .map(el=>{
+ // Facebook may put role="tab" on the button OR on a wrapper.
+ // Limit candidates to the tab/header region; never click profile actions.
+ const top=dialog.getBoundingClientRect().top;
+ const selector='[role="tab"],[role="tablist"] button,[role="tablist"] [role="button"],[role="tablist"] [aria-label],[aria-selected]';
+ const all=[...dialog.querySelectorAll(selector)]
+  .filter((el,i,array)=>array.indexOf(el)===i&&el.getClientRects().length>0&&
+    el.getBoundingClientRect().top<top+Math.min(330,dialog.clientHeight*.60)&&
+    !el.closest('[role="listitem"],li'));
+ return all.map(el=>{
+   const children=[...el.querySelectorAll('img[alt],svg[aria-label],[role="img"][aria-label]')].slice(0,5);
    const labels=[el.getAttribute("aria-label")||"",el.getAttribute("title")||"",
-    (el.innerText||"").slice(0,90),...[...el.querySelectorAll("img[alt],svg[aria-label]")].slice(0,3)
-        .map(x=>x.getAttribute("alt")||x.getAttribute("aria-label")||"")];
-   const kind=labels.map(p=>lib.reactionFromLabel(p)).find(Boolean)||null;
-   return {el,kind,selected:el.getAttribute("aria-selected")==="true",label:labels.join(" ")};
+    el.getAttribute("data-tooltip-content")||"",(el.innerText||"").slice(0,90),
+    ...children.map(x=>x.getAttribute("alt")||x.getAttribute("aria-label")||"")];
+   const kind=labels.map(label=>lib.reactionFromLabel(label)).find(Boolean)||null;
+   const selected=el.getAttribute("aria-selected")==="true"||
+    el.getAttribute("aria-pressed")==="true"||el.getAttribute("aria-current")==="true"||
+    el.getAttribute("data-state")==="active"||
+    !!el.querySelector('[aria-selected="true"],[aria-pressed="true"],[data-state="active"]');
+   return {el,kind,selected,label:labels.join(" ")};
  }).filter(x=>x.kind);
 }
 function rowContainer(anchor,dialog){
@@ -151,26 +165,41 @@ function selectedType(dialog){
 async function saveCards(id,mode,cards){
  saving=saving.catch(()=>{}).then(async()=>{
   const all=await dataRows();
+  const raw=(await chrome.storage.local.get(PENDING_STORE))[PENDING_STORE];
+  const pending=Array.isArray(raw)?raw:[];
   const index=new Map(all.map((r,i)=>[r.photoId+"|"+r.profileUrl,i]));
-  let added=0,skipped=0;
+  const pendingKeys=new Set(pending.map(r=>r.photoId+"|"+r.profileUrl));
+  let added=0,skipped=0,changed=false;
   for(const card of cards){
-    const type=card.reactionIcon||mode;
-    if(!lib.cleanReaction(type)){skipped++;continue;}
+    // A confirmed single-reaction tab is more reliable than decorative icons.
+    const type=lib.cleanReaction(mode)||lib.cleanReaction(card.reactionIcon);
     const key=id+"|"+card.profileUrl;
+    if(!type){
+      if(!index.has(key)&&!pendingKeys.has(key)){
+        pending.push({photoId:id,photoUrl:imageUrl(id),profileUrl:card.profileUrl,
+          userId:card.userId,username:card.username,displayName:card.displayName,
+          reaction:"UNKNOWN",capturedAt:iso()});
+        pendingKeys.add(key);skipped++;
+      }
+      continue;
+    }
     const rec={photoId:id,photoUrl:imageUrl(id),profileUrl:card.profileUrl,userId:card.userId,
       username:card.username,displayName:card.displayName,avatarUrl:card.avatarUrl,
       friendshipStatus:card.friendshipStatus,subscribeStatus:card.subscribeStatus,
       mutualFriendsNumber:card.mutualFriendsNumber,reaction:type,capturedAt:iso()};
     const ix=index.get(key);
-    if(ix===undefined){index.set(key,all.length);all.push(rec);added++;}
+    if(ix===undefined){index.set(key,all.length);all.push(rec);added++;changed=true;}
     else {
       const old=all[ix];
       const merged={...old,...Object.fromEntries(Object.entries(rec).filter(([k,v])=>
         k==="reaction"||k==="capturedAt"||(v!==""&&v!==null&&v!==undefined)))};
-      all[ix]=merged;
+      all[ix]=merged;changed=true;
     }
   }
-  if(cards.length)await chrome.storage.local.set({[STORE]:all});
+  const retained=pending.filter(r=>!index.has(r.photoId+"|"+r.profileUrl));
+  if(changed||skipped||retained.length!==pending.length){
+    await chrome.storage.local.set({[STORE]:all,[PENDING_STORE]:retained});
+  }
   return {added,skipped};
  });
  return saving;
@@ -196,17 +225,24 @@ async function snapshot(dialog,mode){
 }
 async function runType(type,tab,start,id){
  if(stopped)return {added:0,steps:0,skipped:0};
+ let beforeSignature="";
  if(tab){
+   const prior=dialogInfo();
+   beforeSignature=prior?visibleCards(prior).map(x=>x.profileUrl).sort().slice(0,25).join("|"):"";
    tab.el.click();
    await delay(1100);
  }
  const dialog=dialogInfo();
  if(!dialog)throw Error("Hộp thoại reaction đã đóng hoặc không tải được.");
  const selected=selectedType(dialog);
- // Do not apply a tab label if Facebook didn't select that tab.
- const mode=tab?(selected===type?type:null):selected;
- if(tab&&selected!==type){
-   report("Không xác minh được tab "+type+" đã được chọn; chỉ ghi những reaction có biểu tượng riêng.");
+ // Facebook sometimes updates the visible list but omits aria-selected.
+ // A verified change of profile rows after a specific tab click is supporting
+ // evidence; never infer type from the "All" list or a failed click.
+ const afterSignature=tab?visibleCards(dialog).map(x=>x.profileUrl).sort().slice(0,25).join("|"):"";
+ const changed=Boolean(tab&&beforeSignature&&afterSignature&&beforeSignature!==afterSignature);
+ const mode=tab?(selected===type||(!selected&&changed)?type:null):selected;
+ if(tab&&!mode){
+   report("Facebook chưa xác nhận tab "+type+" đã chuyển. URL sẽ được lưu riêng dạng chưa phân loại.");
  }
  const activeTab=candidates(dialog).find(x=>x.selected&&x.kind===type);
  if(mode&&activeTab)await saveDisplayedCount(id,mode,activeTab.label);
@@ -254,8 +290,8 @@ async function beginScan(allTypes){
      if(!detected.length){
        const result=await runType(null,null,start,id);
        total+=result.added;
-       report("Danh sách chung: "+result.added+" hồ sơ mới; "+result.skipped+
-         " hồ sơ không xác định được reaction. Không tự gán nhãn.");
+       report("Danh sách chung: "+result.added+" reaction được phân loại; "+result.skipped+
+         " URL mới chờ xác định loại. Không đếm lặp khi cuộn. Nếu không thấy 5 tab cảm xúc, bấm Kiểm tra nhận diện.");
      }else{
        for(const type of lib.types){
          if(stopped)break;
@@ -274,7 +310,7 @@ async function beginScan(allTypes){
      const result=await runType(selectedType(dialog),null,start,id);
      total=result.added;
      report((stopped?"Đã dừng. ":"Đã hoàn thành tab. ")+total+" hồ sơ mới"+
-       (result.skipped?"; "+result.skipped+" chưa xác định reaction.":""));
+       (result.skipped?"; đã lưu "+result.skipped+" URL chưa rõ loại (không đếm lặp).":""));
    }
  }catch(e){report("Lỗi thu thập: "+(e.message||"không rõ"));}
  finally{
@@ -299,23 +335,37 @@ async function recordPhotoLinks(){
 }
 async function exportCSV(){
  const records=lib.dedupe(await dataRows());
- if(!records.length){report("Chưa có dữ liệu để xuất.");return;}
+ const raw=(await chrome.storage.local.get(PENDING_STORE))[PENDING_STORE];
+ const existing=new Set(records.map(r=>r.photoId+"|"+r.profileUrl));
+ const pending=(Array.isArray(raw)?raw:[]).filter(r=>!existing.has(r.photoId+"|"+r.profileUrl));
+ if(!records.length&&!pending.length){report("Chưa có URL để xuất.");return;}
  const columns=["photoId","photoUrl","profileUrl","userId","username","displayName",
   "reaction","avatarUrl","friendshipStatus","subscribeStatus","mutualFriendsNumber","capturedAt"];
- const csv=lib.csv(records,columns);
+ const csv=lib.csv([...records,...pending],columns);
  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
  const url=URL.createObjectURL(blob);
  const anchor=document.createElement("a");
  anchor.href=url;anchor.download="VOIDSCAN_reactions_"+iso().replace(/[:.]/g,"-").slice(0,19)+".csv";
  root.appendChild(anchor);anchor.click();anchor.remove();
  setTimeout(()=>URL.revokeObjectURL(url),30000);
- report("Đã yêu cầu xuất "+records.length+" dòng CSV.");
+ report("Đã xuất "+records.length+" reaction xác định và "+pending.length+" URL chưa rõ cảm xúc.");
 }
 function home(){
  if(minimized){$("vmain").classList.remove("hidden");minimized=false;}
  $("vheading").textContent="Thu thập reaction tự động";
  report("Home · Sẵn sàng.");
 }
+function diagnostic(){
+ const dialog=dialogInfo();
+ if(!dialog){report("Không tìm thấy hộp thoại reaction. Hãy bấm vào số cảm xúc của ảnh.");return;}
+ const tabs=candidates(dialog),rows=visibleCards(dialog);
+ const selected=selectedType(dialog)||"Không rõ / Tất cả";
+ const icons=rows.filter(x=>x.reactionIcon).length;
+ report("Chẩn đoán: "+tabs.length+" tab có tên cảm xúc, tab chọn: "+selected+
+   ", "+rows.length+" URL đang hiển thị, "+icons+" biểu tượng nhận dạng được. "+
+   (tabs.length===0&&icons===0?"Facebook không hiển thị dấu hiệu phân loại; URL sẽ lưu dạng UNKNOWN. Hãy gửi ảnh chụp thanh tab cảm xúc để điều chỉnh.":"Hãy chọn Quét tự động cả 5 loại cảm xúc."));
+}
+$("vdiag").addEventListener("click",diagnostic);
 $("vauto").addEventListener("click",()=>beginScan(true));
 $("vcurrent").addEventListener("click",()=>beginScan(false));
 $("vlinks").addEventListener("click",()=>recordPhotoLinks().catch(()=>report("Không lưu được link ảnh.")));

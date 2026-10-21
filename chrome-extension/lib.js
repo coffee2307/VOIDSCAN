@@ -61,10 +61,13 @@ function cleanReaction(value){
   return v[x]||null;
 }
 function reactionFromLabel(value){
-  const str=String(value||"").trim();
+  const str=String(value||"").trim().replace(/\u00a0/g," ");
   if(!str)return null;
   const leading=str.replace(/\s*[\d.,\sKkMm]+\s*$/,"").trim();
-  return cleanReaction(leading)||cleanReaction(str)||null;
+  const prefix=leading.replace(/^(?:reaction|cảm xúc)\s*[:：-]?\s*/i,"");
+  const match=prefix.match(/^(thương thương|yêu thích|ngạc nhiên|thích|like|love|care|haha|wow)(?=$|[\s:：·(\[])/i);
+  return cleanReaction(leading)||cleanReaction(prefix)||
+    (match?cleanReaction(match[1]):null)||cleanReaction(str)||null;
 }
 function parseCount(value){
   const s=String(value||"").trim().replace(/\s/g,"").replace(/,/g,"");

@@ -52,6 +52,9 @@ assert.equal(lib.profileMeta("https://www.facebook.com/profile.php?id=1234567890
 assert.equal(lib.profileMeta("https://www.facebook.com/jane.doe/?ref=example").username,"jane.doe");
 assert.equal(lib.reactionFromLabel("Love 34"),"LOVE");
 assert.equal(lib.reactionFromLabel("Thương thương 19"),"CARE");
+assert.equal(lib.reactionFromLabel("Reaction: Love 27"),"LOVE");
+assert.equal(lib.reactionFromLabel("Cảm xúc: Thích 1.2K"),"LIKE");
+assert.equal(lib.reactionFromLabel("Like (12)"),"LIKE");
 assert.equal(lib.reactionFromLabel("Sad 100"),null);
 assert.equal(lib.parseCount("1.5K"),1500);
 assert.equal(lib.avatarUrl("https://evil.example/photo.png"),"");
