@@ -1,5 +1,7 @@
 # VOIDSCAN 3.0 — Guided Reaction Integrity Research Preview
 
+**Chrome + Playwright on Windows (opt-in):** Run `setup-voidscan-facebook.bat` to open a dedicated Chrome window where you manually sign in to Facebook. This setup uses an isolated profile in `%LOCALAPPDATA%`, not your personal Chrome profile, and does not export cookies, passwords or MFA codes. The browser is opened, not a completed 38-photo scan or validated bot detector. Read [Facebook Chrome setup](docs/FACEBOOK_BROWSER_SETUP.md).
+
 **Live monitoring cadence fix:** the running server now checks for due active watches approximately every 30 seconds, but calls Meta at most once per configured 10-minute interval per watched object, taking recent manual scans into account. Restarting VOIDSCAN does not reset the next-due timer. This does not run while the server is closed, and does not imply account-level bot identification. See [Monitoring Readiness](docs/R1_MONITOR_READINESS.md).
 
 **Phase R2 human-ground-truth intake (research-only):** two blinded, independently pseudonymized reviewers must agree on event labels, or a separate third reviewer resolves disagreements before replay. No raw account identities or model predictions are accepted in the labeled dataset. Command: `python research_cli.py adjudicate --input ... --output ...`. See [R2 Ground Truth Review](docs/R2_GROUND_TRUTH_REVIEW.md). Self-attested independence and evidence are NOT authenticated by software, and this is NOT a validated bot model.
