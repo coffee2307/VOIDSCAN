@@ -1,13 +1,13 @@
 (() => {
 "use strict";
 const $=id=>document.getElementById(id);
-const FILE=window.VoidscanFileAudit,LIB=window.VoidscanAudit, XLSX=window.VoidscanXlsx,INTEGRITY=window.VoidscanIntegrity,PROFILE=window.VoidscanProfileImport,PUBLIC=window.VoidscanPublicMetadata,AUTO=window.VoidscanAutoAudit,COVERAGE=window.VoidscanCoverage;
+const FILE=window.VoidscanFileAudit,LIB=window.VoidscanAudit, XLSX=window.VoidscanXlsx,INTEGRITY=window.VoidscanIntegrity,PROFILE=window.VoidscanProfileImport,PUBLIC=window.VoidscanPublicMetadata,AUTO=window.VoidscanAutoAudit,COVERAGE=window.VoidscanCoverage,PRIVACY=window.VoidscanPrivacyAudit;
 const STORAGE_REACTIONS="voidscan_reactions_v1",STORAGE_PENDING="voidscan_pending_reactions_v1";
 const STORAGE_DECISIONS="voidscan_screening_reviews_v1",STORAGE_COUNTS="voidscan_visible_reaction_counts_v2",PROFILE_STORE="voidscan_profile_observations_v1",MAX_CSV_BYTES=15*1024*1024;
 let scanToken=0,source=[],allSource=[],sourceOrigin="",profiles=[],results=[],byUrl=new Map(),chosen="",decisionMap={};
 let sourceLabel="Dữ liệu trong Chrome",integrityReport=null,profileSource=[];
 let metadataBusy=false,metadataStop=false;const ATTEMPT_STORE="voidscan_public_metadata_attempts_v1";
-const AUTO_STORE="voidscan_auto_audit_state_v1";
+const AUTO_STORE="voidscan_auto_audit_state_v1",AUDIT_STORE="voidscan_ephemeral_audit_v1";
 let autoBusy=false,autoAbort=null,autoPauseRequested=false,autoSession=null;
 let reviewTabId=null,reviewTabTarget="";
 const stateText=t=>{$("manual-review-state").textContent=t;};
@@ -173,12 +173,20 @@ async function scan(data,origin){
    "; có lịch sử từ ít nhất hai ảnh "+fmt(historyProfiles)+"/"+fmt(profiles.length)+
    ". Các trường chỉ được sử dụng khi CSV thực sự cung cấp. Trùng tên và reaction UNKNOWN chỉ là vấn đề chất lượng dữ liệu, không phải dấu hiệu tài khoản ảo.";
   $("progress-title").textContent="Đang phân tích dữ liệu CSV — không mở profile Facebook";
-  const decisions=await chrome.storage.local.get(STORAGE_DECISIONS);
+  const decisions=await chrome.storage.local.get([STORAGE_DECISIONS,AUDIT_STORE]);
   decisionMap=decisions[STORAGE_DECISIONS]&&typeof decisions[STORAGE_DECISIONS]==="object"?
     decisions[STORAGE_DECISIONS]:{};
+  const minimalAudit=PRIVACY?PRIVACY.prune(decisions[AUDIT_STORE]).records:{};
   for(let i=0;i<profiles.length;i++){
    if(ticket!==scanToken){$("progress-title").textContent="Đã dừng.";return;}
    const row=FILE.scoreProfile(profiles[i],prepared.photoTotal,decisionMap);
+   const audit=minimalAudit[row.profileUrl];
+   if(audit){
+     row.privacyAccess=audit.access;
+     row.privacyCheckedAt=audit.checkedAt;
+     row.privacyDecision=audit.status;
+     row.evidence+=" | "+PRIVACY.describe(audit);
+   }
    results.push(row);byUrl.set(row.profileUrl,row);
    currentProgress.done++;
    if(row.status===FILE.LABEL_SUSPECT)currentProgress.flagged++;
@@ -250,10 +258,13 @@ async function scanScope(){
 }
 async function showCoverageReport(){
  if(!COVERAGE)return;
- const saved=await chrome.storage.local.get([AUTO_STORE,PROFILE_STORE,ATTEMPT_STORE]);
+ const saved=await chrome.storage.local.get([AUTO_STORE,PROFILE_STORE,ATTEMPT_STORE,AUDIT_STORE]);
  const state=saved[AUTO_STORE]||{};
  const urls=allSource.length?AUTO.plan(FILE.normaliseRows(allSource).rows):state.urls||[];
- const summary=COVERAGE.assess(urls,saved[ATTEMPT_STORE]||{},saved[PROFILE_STORE]||{});
+ const derived=PRIVACY?PRIVACY.prune(saved[AUDIT_STORE]).records:{};
+ const usable=Object.fromEntries(Object.entries(derived).filter(([,v])=>v.usable));
+ const summary=COVERAGE.assess(urls,saved[ATTEMPT_STORE]||{},
+   {...(saved[PROFILE_STORE]||{}),...usable});
  const {counters:c,outcomes}=summary;
  $("metadata-status").textContent="Tiến độ truy xuất metadata: "+fmt(summary.attemptedTotal)+
    " URL đã thử · "+fmt(c.withEvidence)+" có dữ liệu bổ sung · "+fmt(c.unattempted)+
@@ -263,10 +274,13 @@ async function showCoverageReport(){
 }
 function exportAutoLog(){
  if(!COVERAGE){msg("Không có mô-đun nhật ký.");return;}
- chrome.storage.local.get([AUTO_STORE,PROFILE_STORE,ATTEMPT_STORE]).then(saved=>{
+ chrome.storage.local.get([AUTO_STORE,PROFILE_STORE,ATTEMPT_STORE,AUDIT_STORE]).then(saved=>{
    const state=saved[AUTO_STORE]||{},urls=allSource.length?
       AUTO.plan(FILE.normaliseRows(allSource).rows):state.urls||[];
-   const report=COVERAGE.assess(urls,saved[ATTEMPT_STORE]||{},saved[PROFILE_STORE]||{});
+   const derived=PRIVACY?PRIVACY.prune(saved[AUDIT_STORE]).records:{};
+   const usable=Object.fromEntries(Object.entries(derived).filter(([,v])=>v.usable));
+   const report=COVERAGE.assess(urls,saved[ATTEMPT_STORE]||{},
+     {...(saved[PROFILE_STORE]||{}),...usable});
    if(!report.rows.length){msg("Chưa có danh sách để xuất nhật ký.");return;}
    const headers=["URL hồ sơ","Trạng thái truy xuất","Thời điểm thử","Có dữ liệu hồ sơ"];
    const rows=report.rows.map(r=>({
@@ -299,11 +313,11 @@ function showAutoProgress(state){
  $("auto-pause").disabled=!autoBusy;
  $("auto-start").disabled=autoBusy;
 }
-async function persistAuto(queue,profilesMap,attempts){
+async function persistAuto(queue,decisions,attempts){
  queue.updatedAt=new Date().toISOString();
  autoSession=queue;
- // Save progress after every URL so pauses and tab reloads lose at most the current request.
- await chrome.storage.local.set({[AUTO_STORE]:queue,[PROFILE_STORE]:profilesMap,[ATTEMPT_STORE]:attempts});
+ // Only minimal, expiring decisions and access status are persisted.
+ await chrome.storage.local.set({[AUTO_STORE]:queue,[AUDIT_STORE]:decisions,[ATTEMPT_STORE]:attempts});
  showAutoProgress(queue);
  if(queue.index%10===0||queue.status!=="running")
    await showCoverageReport();
@@ -311,7 +325,7 @@ async function persistAuto(queue,profilesMap,attempts){
 async function startAutoAudit(){
  if(autoBusy)return;
  if(metadataBusy){msg("Vui lòng đợi lần thử metadata 10 hồ sơ hoàn tất.");return;}
- if(!AUTO||!PUBLIC){msg("Chưa tải được mô-đun Auto Audit.");return;}
+ if(!AUTO||!PUBLIC||!PRIVACY){msg("Chưa tải được bộ xử lý dữ liệu tối thiểu.");return;}
  const stored=(await chrome.storage.local.get(AUTO_STORE))[AUTO_STORE];
  const candidate=allSource.length?AUTO.plan(FILE.normaliseRows(allSource).rows):stored?.urls||[];
  if(!candidate.length){msg("Chưa có URL. Nhập CSV reaction hoặc lấy dữ liệu từ tiện ích trước.");return;}
@@ -321,17 +335,18 @@ async function startAutoAudit(){
  if(q.index>=q.urls.length)q=AUTO.create(candidate,null);
  q.status="running";q.stopReason="";
  autoBusy=true;autoPauseRequested=false;autoAbort=new AbortController();
- const state=await chrome.storage.local.get([PROFILE_STORE,ATTEMPT_STORE]);
- const profilesMap=state[PROFILE_STORE]||{},attempts=state[ATTEMPT_STORE]||{};
+ const state=await chrome.storage.local.get([PROFILE_STORE,ATTEMPT_STORE,AUDIT_STORE]);
+ const oldObservations=state[PROFILE_STORE]||{},attempts=state[ATTEMPT_STORE]||{};
+ const decisions=PRIVACY.prune(state[AUDIT_STORE]).records;
  let consecutiveNetworkErrors=0;
  try{
-  await persistAuto(q,profilesMap,attempts);
+  await persistAuto(q,decisions,attempts);
   while(q.index<q.urls.length){
    if(autoPauseRequested){q.status="paused";q.stopReason="Đã tạm dừng theo yêu cầu.";break;}
-   const url=q.urls[q.index],existing=profilesMap[url],attempt=attempts[url];
+   const url=q.urls[q.index],existing=oldObservations[url]||decisions[url],attempt=attempts[url];
    if(existing||AUTO.reuseAttempt(attempt)){
      q.skipped++;q.index++;
-     await persistAuto(q,profilesMap,attempts);
+     await persistAuto(q,decisions,attempts);
      continue;
    }
    // Public HTML without cookies; no authenticated tab scraping.
@@ -347,13 +362,14 @@ async function startAutoAudit(){
      q.stopReason=outcome.access==="rate_limited"?"Facebook giới hạn tốc độ; không thử vượt chặn.":
        outcome.access==="restricted"?"Facebook yêu cầu đăng nhập/xác minh; không thử vượt chặn.":
        "Nhiều lỗi mạng liên tiếp; đã dừng để tránh tiếp tục truy xuất.";
-     await persistAuto(q,profilesMap,attempts);break;
+     await persistAuto(q,decisions,attempts);break;
    }
-   const usable=AUTO.metadata(outcome,url);
-   if(usable){profilesMap[url]=usable;q.usable++;}
+   const decision=PRIVACY.decide(outcome);
+   decisions[url]=decision;
+   if(decision.usable)q.usable++;
    else q.unavailable++;
    q.attempted++;q.index++;
-   await persistAuto(q,profilesMap,attempts);
+   await persistAuto(q,decisions,attempts);
    if(q.index%10===0&&allSource.length)await scanScope();
    if(q.index<q.urls.length){
      // Deliberately conservative sequential pacing; keep tab open.
@@ -362,14 +378,14 @@ async function startAutoAudit(){
   }
   if(q.index>=q.urls.length){q.status="complete";q.stopReason="Đã thử toàn bộ URL trong hàng đợi.";}
   else if(q.status==="running"){q.status="paused";q.stopReason="Tạm dừng.";}
-  await persistAuto(q,profilesMap,attempts);
+  await persistAuto(q,decisions,attempts);
   if(allSource.length)await scanScope();
   const resultText="Auto Audit: "+fmt(q.index)+"/"+fmt(q.urls.length)+" URL, "+
    fmt(q.usable)+" có metadata dùng được, "+fmt(q.unavailable)+" chưa đủ dữ liệu. "+q.stopReason;
   msg(resultText);
  }catch(e){
   q.status="paused";q.stopReason="Lỗi xử lý: "+(e.message||"không xác định");
-  await persistAuto(q,profilesMap,attempts).catch(()=>{});
+  await persistAuto(q,decisions,attempts).catch(()=>{});
   msg(q.stopReason);
  }finally{
   autoBusy=false;autoAbort=null;
@@ -382,6 +398,39 @@ function pauseAutoAudit(){
  autoAbort?.abort();
  $("auto-pause").disabled=true;
 }
+async function purgeExpiredAudit(){
+ if(!PRIVACY)return;
+ const keys=[AUDIT_STORE,ATTEMPT_STORE,AUTO_STORE,PROFILE_STORE];
+ const stored=await chrome.storage.local.get(keys),now=Date.now();
+ const decisions=PRIVACY.prune(stored[AUDIT_STORE],now).records;
+ const attempts={};
+ for(const [url,entry] of Object.entries(stored[ATTEMPT_STORE]||{})){
+   const date=Date.parse(entry?.at||"");
+   if(Number.isFinite(date)&&date<=now&&now-date<PRIVACY.TTL_MS)
+     attempts[url]={status:String(entry.status||"unknown"),at:new Date(date).toISOString()};
+ }
+ const observed={};
+ for(const [url,entry] of Object.entries(stored[PROFILE_STORE]||{})){
+   const date=Date.parse(entry?.observedAt||"");
+   if(Number.isFinite(date)&&date<=now&&now-date<PRIVACY.TTL_MS)observed[url]=entry;
+ }
+ await chrome.storage.local.set({
+   [AUDIT_STORE]:decisions,[ATTEMPT_STORE]:attempts,[PROFILE_STORE]:observed
+ });
+ const last=Date.parse(stored[AUTO_STORE]?.updatedAt||"");
+ if(stored[AUTO_STORE]&&(!Number.isFinite(last)||now-last>=PRIVACY.TTL_MS))
+   await chrome.storage.local.remove(AUTO_STORE);
+}
+async function eraseStoredAudit(){
+ if(autoBusy||metadataBusy){msg("Hãy dừng Auto Audit trước khi xóa dữ liệu.");return;}
+ await chrome.storage.local.remove([
+  STORAGE_REACTIONS,STORAGE_PENDING,STORAGE_DECISIONS,STORAGE_COUNTS,
+  PROFILE_STORE,ATTEMPT_STORE,AUTO_STORE,AUDIT_STORE,
+  "voidscan_photo_links_v1","voidscan_active_photo_v1"
+ ]);
+ profileSource=[];allSource=[];source=[];results=[];byUrl.clear();
+ location.reload();
+}
 async function refreshAutoState(){
  const stored=(await chrome.storage.local.get(AUTO_STORE))[AUTO_STORE];
  if(!autoBusy&&stored?.status==="running"){
@@ -391,54 +440,6 @@ async function refreshAutoState(){
  }
  if(!autoBusy)showAutoProgress(stored);
  await showCoverageReport();
-}
-async function fetchPublicBatch(){
- if(autoBusy){msg("Auto Audit đang chạy; hãy tạm dừng trước khi dùng công cụ thử 10 hồ sơ.");return;}
- if(metadataBusy||!PUBLIC||!results.length)return;
- if(!chrome.permissions?.request){msg("Trình duyệt không hỗ trợ quyền metadata tùy chọn.");return;}
- const approved=await chrome.permissions.request({origins:["https://www.facebook.com/*"]});
- if(!approved){msg("Bạn đã từ chối quyền đọc metadata công khai.");return;}
- metadataBusy=true;metadataStop=false;
- const button=$("fetch-public-profiles");
- button.disabled=true;
- const saved=await chrome.storage.local.get([PROFILE_STORE,ATTEMPT_STORE]);
- const profilesMap=saved[PROFILE_STORE]||{},attempts=saved[ATTEMPT_STORE]||{};
- const now=Date.now(),eligible=results.filter(r=>{
-   const checked=attempts[r.profileUrl];
-   return !profilesMap[r.profileUrl]&&(!checked||now-new Date(checked.at).getTime()>86400000);
- }).slice(0,10);
- let accessed=0,matched=0,failed=0,halt="";
- try{
-  for(let i=0;i<eligible.length&&!metadataStop;i++){
-   const row=eligible[i];
-   $("metadata-status").textContent="Đang đọc metadata công khai "+(i+1)+"/"+eligible.length+" — "+row.profileUrl;
-   const result=await PUBLIC.get(row.profileUrl);
-   attempts[row.profileUrl]={at:new Date().toISOString(),status:result.access};
-   if(result.access==="rate_limited"||result.access==="restricted"){
-    halt="Facebook yêu cầu xác minh hoặc hạn chế truy cập. Đã dừng; không thử vượt chặn.";
-    break;
-   }
-   accessed++;
-   if(result.access==="public_metadata"&&(result.region!=="unknown"||result.hasBio===true)){
-    profilesMap[row.profileUrl]={
-      profileUrl:row.profileUrl,source:"public_metadata",observedAt:new Date().toISOString(),
-      regionContext:result.region,
-      hasBio:result.hasBio===true?"1":""
-    };
-    matched++;
-   }else failed++;
-   if(i<eligible.length-1)await sleep(1600);
-  }
-  await chrome.storage.local.set({[PROFILE_STORE]:profilesMap,[ATTEMPT_STORE]:attempts});
-  const report="Đã thử "+accessed+" hồ sơ, có "+matched+
-   " hồ sơ với metadata sử dụng được, "+failed+" không đủ thông tin. "+
-   (halt||"Nhấn lại để thử nhóm tiếp theo (tối đa 10 hồ sơ/lượt).");
-  $("metadata-status").textContent=report;
-  msg(report);
-  if(allSource.length)await scanScope();
- }catch(e){
-  msg("Lỗi đọc metadata công khai: "+e.message);
- }finally{metadataBusy=false;button.disabled=false;}
 }
 async function loadFromChrome(){
  const saved=await chrome.storage.local.get([STORAGE_REACTIONS,STORAGE_PENDING]);
@@ -586,7 +587,7 @@ chrome.storage.onChanged?.addListener((changes,area)=>{
 $("auto-start").addEventListener("click",()=>startAutoAudit().catch(e=>msg("Auto Audit không chạy: "+e.message)));
 $("auto-pause").addEventListener("click",pauseAutoAudit);
 $("auto-export").addEventListener("click",exportAutoLog);
-$("fetch-public-profiles").addEventListener("click",()=>fetchPublicBatch().catch(e=>msg("Lỗi truy xuất: "+e.message)));
+$("privacy-erase").addEventListener("click",()=>eraseStoredAudit().catch(e=>msg("Lỗi xóa dữ liệu: "+e.message)));
 $("source-local").addEventListener("click",()=>loadFromChrome().catch(e=>msg("Lỗi đọc dữ liệu Chrome: "+e.message)));
 $("photo-scope").addEventListener("change",()=>scanScope().catch(e=>msg("Lỗi thay đổi phạm vi ảnh: "+e.message)));
 $("profile-upload").addEventListener("change",e=>{
@@ -638,6 +639,6 @@ $("copy").addEventListener("click",()=>{
 });
 // No external fetch(), profile visits, tracking or upload. Optional initial scan
 // uses only local extension records. User-imported file remains memory-only.
-loadFromChrome().then(refreshAutoState).catch(e=>msg("Chưa có dữ liệu local. Chọn CSV từ popup: "+e.message));
-refreshAutoState().catch(()=>{});
+purgeExpiredAudit().then(loadFromChrome).then(refreshAutoState)
+  .catch(e=>msg("Không tải được dữ liệu Chrome; hãy chọn CSV để bắt đầu: "+e.message));
 })();

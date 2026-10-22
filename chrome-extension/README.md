@@ -1,4 +1,18 @@
-# VOIDSCAN Reaction Audit — Chrome Extension 0.6.2
+# VOIDSCAN Reaction Audit — Chrome Extension 0.7.0
+
+## 0.7.0 — Auto Audit tối thiểu dữ liệu và xóa cục bộ
+
+- Auto Audit tiếp tục duyệt URL hợp lệ bằng HTML metadata công khai, không có cookie. Mỗi lượt xử lý các tín hiệu rồi bỏ dữ liệu đọc được trong bộ nhớ. Không lưu HTML, trường học, số bạn bè, nội dung bài đăng, avatar hoặc thông tin liên hệ từ lượt Auto Audit.
+- Trong Chrome Storage, chỉ lưu kết quả tối thiểu gồm status, access, usable, reason, checkedAt, expiresAt cùng URL từ CSV gốc. Metadata công khai đơn lẻ không xác minh tài khoản thật/giả; trạng thái vẫn là chưa đủ dữ liệu.
+- Kết quả và trạng thái truy xuất hết hạn 24 giờ và được dọn khi mở lại trang kiểm toán; đây không phải bảo đảm xóa tuyệt đối cache trình duyệt, file tải xuống hoặc bản sao lưu.
+- Nút Xóa toàn bộ dữ liệu kiểm toán trong Chrome xóa reaction, hồ sơ ghi nhận, hàng đợi, bộ đếm và đánh giá thủ công đang lưu trong extension; giao diện sẽ tải lại.
+- Nhật ký và báo cáo vẫn có URL từ CSV gốc để đối chiếu. Không ghi dữ liệu cá nhân của hồ sơ được trích xuất.
+- Ghi nhận thủ công là chức năng riêng: dữ liệu phiên cũ chỉ được giữ trong vòng 24 giờ từ thời điểm quan sát khi trang kiểm toán khởi động.
+- Không thực hiện crawler phiên đăng nhập để lấy hàng loạt lịch sử cá nhân hoặc mạng lưới bạn bè.
+
+Kiểm thử: node chrome-extension/test-privacy-audit.cjs; python tests/auto_audit_browser_smoke.py.
+
+
 
 ## 0.6.2 — Tăng trường dữ liệu trên hồ sơ do người dùng mở
 

@@ -13,7 +13,7 @@
     <button id="auto-start" type="button" class="primary">Bắt đầu Auto Audit toàn bộ</button>
     <button id="auto-pause" type="button" disabled>Tạm dừng</button>
     <button id="auto-export" type="button">Xuất nhật ký Auto Audit</button>
-    <button id="fetch-public-profiles" type="button">Thử metadata công khai · 10 hồ sơ</button>
+    <button id="privacy-erase" type="button">Xóa toàn bộ dữ liệu kiểm toán trong Chrome</button>
     <button id="csvall" type="button">Xuất CSV kết quả</button>
     <button id="export-integrity" type="button">Xuất CSV đối soát ảnh</button>
     <button id="xlsxall" type="button" class="primary">Xuất Excel đẹp (.xlsx)</button>
@@ -73,6 +73,7 @@
     <p class="small">Không sử dụng cookie phiên, không mở hồ sơ riêng tư, không vượt giới hạn truy cập. Hồ sơ không trả metadata sẽ ở trạng thái chưa đủ dữ liệu, không bị đánh dấu bot.</p>
   </section>
   <p id="auto-diagnosis" class="notice">Chưa đánh giá độ bao phủ dữ liệu.</p>
+  <p class="small">Auto Audit chỉ lưu quyết định và trạng thái tối thiểu (hết hạn sau 24 giờ), không lưu HTML hoặc nội dung hồ sơ. Xóa toàn bộ dữ liệu cục bộ không xóa các file CSV/Excel đã tải xuống.</p>
   <p id="metadata-status" class="small">Đọc metadata công khai là tùy chọn; không vượt trang đăng nhập, CAPTCHA hay giới hạn truy cập.</p>
   <p id="notice" class="notice">
   Hệ thống CHỈ phân tích thông tin có trong CSV, chưa kiểm tra nội dung trang cá nhân, bạn bè, nơi ở hoặc lịch sử hoạt động.
@@ -147,6 +148,7 @@
 <script src="public-metadata.js"></script>
 <script src="auto-audit.js"></script>
 <script src="auto-coverage.js"></script>
+<script src="privacy-audit.js"></script>
 <script src="reaction-integrity.js"></script>
 <script src="xlsx-export.js"></script>
 <script src="review.js"></script>

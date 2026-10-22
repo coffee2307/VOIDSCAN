@@ -13,7 +13,8 @@ MOCK="""() => {
      local:{get:async keys=>{
        const out={};for(const k of Array.isArray(keys)?keys:[keys])
          if(k in window.__stored)out[k]=window.__stored[k];return out;
-     },set:async update=>Object.assign(window.__stored,update)},
+     },set:async update=>Object.assign(window.__stored,update),
+            remove:async keys=>{for(const k of (Array.isArray(keys)?keys:[keys]))delete window.__stored[k];}},
      onChanged:{addListener:()=>{}}
    }
  };
@@ -25,7 +26,7 @@ with sync_playwright() as pw:
   page.set_content((EXT/"review.html").read_text(encoding="utf-8"))
   page.evaluate(MOCK)
   for name in ["lib.js","file-audit.js","profile-import.js","public-metadata.js",
-               "auto-audit.js","auto-coverage.js","reaction-integrity.js","xlsx-export.js","review.js"]:
+               "auto-audit.js","auto-coverage.js","privacy-audit.js","reaction-integrity.js","xlsx-export.js","review.js"]:
    page.add_script_tag(path=str(EXT/name))
   page.evaluate("""() => {
     window.VoidscanAutoAudit.WAIT_MS=0;
@@ -43,9 +44,15 @@ with sync_playwright() as pw:
   assert saved["usable"]==4,saved
   assert saved["urls"] and len(saved["urls"])==4,saved
   assert page.evaluate("window.__tested")==4
-  page.wait_for_function('document.getElementById("insufficient").textContent==="0"',timeout=15000)
+  page.wait_for_function('document.getElementById("insufficient").textContent==="4"',timeout=15000)
+  record=page.evaluate("window.__stored.voidscan_ephemeral_audit_v1")
+  assert len(record)==4,record
+  assert not page.evaluate("window.__stored.voidscan_profile_observations_v1")
+  assert all(set(x)=={"status","access","usable","reason","checkedAt","expiresAt"} for x in record.values())
+  assert all(x["status"]=="chưa đủ dữ liệu" for x in record.values())
+  assert not any("local" in str(x) or "bio" in str(x) for x in record.values())
   assert page.locator("#auto-progress").inner_text().startswith("4/4 URL")
-  assert page.locator("#evidence-coverage").inner_text()=="4 / 4"
+  assert page.locator("#evidence-coverage").inner_text()=="0 / 4"
   assert "4 URL đã thử" in page.locator("#metadata-status").inner_text()
   with page.expect_download(timeout=15000) as exported:
    page.locator("#auto-export").click()
@@ -56,5 +63,18 @@ with sync_playwright() as pw:
   page.locator("#auto-start").click()
   page.wait_for_function('document.getElementById("auto-state").textContent==="Hoàn thành"',timeout=20000)
   assert page.evaluate("window.__tested")==4
-  print("VOIDSCAN auto audit from CSV to completed queue, persistence, duplicate suppression: PASS")
+  removed=[]
+  page.expose_function("recordRemovedAuditKeys",lambda keys:removed.extend(keys))
+  page.evaluate("""() => {
+    const original=window.chrome.storage.local.remove;
+    window.chrome.storage.local.remove=async keys=>{
+      await window.recordRemovedAuditKeys(keys);return original(keys);
+    };
+  }""")
+  page.locator("#privacy-erase").click()
+  page.wait_for_timeout(350)
+  assert {"voidscan_ephemeral_audit_v1","voidscan_auto_audit_state_v1",
+          "voidscan_reactions_v1","voidscan_profile_observations_v1",
+          "voidscan_public_metadata_attempts_v1"}.issubset(set(removed)),removed
+  print("VOIDSCAN automatic privacy audit, no raw persistence and wipe button: PASS")
  finally:browser.close()
