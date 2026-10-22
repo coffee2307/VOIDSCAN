@@ -1,4 +1,15 @@
-# VOIDSCAN Reaction Audit — Chrome Extension 0.8.0
+# VOIDSCAN Reaction Audit — Chrome Extension 0.8.1
+
+## 0.8.1 — Tín hiệu tổng hợp trên tab đang mở, không giữ dữ liệu cá nhân thô
+
+- Auto Audit mở lần lượt URL từ CSV bằng một tab Chrome (chức năng của v0.8.0), tự phân tích các trường đang hiện trên trang: avatar, sự hiện diện của mục nơi ở/học vấn/bio, khoảng số lượng bạn bè và bạn chung, nhóm độ mới của các bài đăng có timestamp và nhóm thời gian tham gia Facebook nếu hiển thị rõ.
+- Chỉ đưa kết quả dạng boolean/khoảng vào Chrome Storage trong tối đa 24 giờ; không lưu tên trường, nơi ở chính xác, nội dung bài đăng, danh sách bạn bè, số điện thoại, email, ngày sinh hoặc HTML của trang.
+- Kết quả chi tiết xem trong khung hồ sơ, cột tín hiệu tổng hợp trong Excel/CSV và thống kê số hồ sơ có bất kỳ tín hiệu nào quan sát được.
+- Trường vắng mặt trên giao diện có nghĩa **chưa quan sát được**, không xác nhận rằng trường đó không tồn tại; mốc thời gian chỉ phản ánh các bài viết đang hiển thị chứ không phải toàn bộ lịch sử tài khoản.
+- Cơ chế phân loại dựa trên bằng chứng từ CSV và nguồn đã cung cấp hợp lệ. Các tín hiệu trên tab này hỗ trợ đối chiếu nhưng **không tự xác minh tài khoản thật/ảo**. Một ảnh reaction duy nhất vẫn không thể cung cấp bằng chứng hành vi lặp giữa các ảnh.
+- Kiểm thử: node chrome-extension/test-privacy-audit.cjs; python tests/tab_coarse_signals_browser_smoke.py; python tests/auto_audit_browser_smoke.py. Các bài kiểm thử là môi trường giả lập, không đảm bảo Facebook thực tế luôn hiển thị đúng nhãn.
+
+
 
 ## 0.8.0 — Điều hướng tab Chrome tự động (chế độ bảo vệ dữ liệu)
 

@@ -24,7 +24,12 @@ MOCK="""() => {
      remove:async id=>{window.__tabCloseCount=(window.__tabCloseCount||0)+1;},
      onUpdated:{addListener:()=>{},removeListener:()=>{}}
    },
-   scripting:{executeScript:async o=>[{result:{access:"page_visible",avatarSeen:true}}]},
+   scripting:{executeScript:async o=>[{result:{
+     access:"page_visible",avatarSeen:true,locationListed:true,schoolListed:true,
+     friendsBand:"200-999",mutualBand:"1-49",postRecency:"within_90d",joinedEra:"5y_plus",
+     schoolName:"Should Not Persist",postBody:"Should Never Persist",
+     email:"not-for-storage@example.test"
+   }}]},
    storage:{
      local:{get:async keys=>{
        const out={};for(const k of Array.isArray(keys)?keys:[keys])
@@ -63,12 +68,16 @@ with sync_playwright() as pw:
   record=page.evaluate("window.__stored.voidscan_ephemeral_tab_audit_v1")
   assert len(record)==4,record
   assert not page.evaluate("window.__stored.voidscan_profile_observations_v1")
-  assert all(set(x)=={"status","access","usable","reason","checkedAt","expiresAt"} for x in record.values())
+  assert all(set(x)=={"status","access","usable","reason",
+                         "signalCount","signals","checkedAt","expiresAt"} for x in record.values())
+  assert all(x["signalCount"]>=5 for x in record.values())
+  assert not any("Should Not Persist" in str(x) or "not-for-storage" in str(x) for x in record.values())
   assert all(x["status"]=="chưa đủ dữ liệu" and x["access"]=="page_visible"
              for x in record.values())
-  assert not any("local" in str(x) or "bio" in str(x) for x in record.values())
+  assert not any("Should Never Persist" in str(x) or "not-for-storage" in str(x) for x in record.values())
   assert page.locator("#auto-progress").inner_text().startswith("4/4 URL")
-  assert page.locator("#evidence-coverage").inner_text()=="0 / 4"
+  assert page.locator("#evidence-coverage").inner_text()=="4 / 4"
+  assert "Bạn bè: 200-999" in page.locator("#auto-signal-detail").inner_text()
   assert "4 URL đã thử" in page.locator("#metadata-status").inner_text()
   with page.expect_download(timeout=15000) as exported:
    page.locator("#auto-export").click()

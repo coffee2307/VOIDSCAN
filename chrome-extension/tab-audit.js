@@ -25,7 +25,38 @@ function probePage(){
    const label=(el.alt||"")+" "+(el.getAttribute("aria-label")||"");
    return /profile picture|profile photo|ảnh đại diện|ảnh hồ sơ/i.test(label);
  });
- return {access:"page_visible",avatarSeen};
+ // Only emit coarse observations; never return names, raw text, friend lists,
+ // school names, exact dates, locations, or contact fields.
+ const visible=(document.body?.innerText||"").slice(0,32000);
+ const lines=visible.split(/[\r\n]+/).map(x=>x.trim()).filter(Boolean);
+ const hasLine=regex=>lines.some(line=>regex.test(line));
+ const locationListed=hasLine(/^(?:sống tại|hiện sống tại|lives in|living in|đang sống tại)\s+.{2,85}$/i);
+ const schoolListed=hasLine(/^(?:học tại|đã học tại|studies at|studied at|went to)\s+.{2,90}$/i);
+ const bioListed=hasLine(/^(?:tiểu sử|giới thiệu|bio|about me)\s*[:：]\s*.{3,100}$/i);
+ // Only count visibly labeled summaries; 0 means an explicit displayed zero,
+ // while 'unknown' means Facebook did not expose a count.
+ const numberFromLabel=regex=>{
+   const match=visible.match(regex);
+   if(!match)return null;
+   const parsed=Number(match[1].replace(/[.,\s]/g,""));
+   return Number.isSafeInteger(parsed)&&parsed>=0&&parsed<=10000000?parsed:null;
+ };
+ const band=n=>n===null?"unknown":n===0?"0":n<50?"1-49":n<200?"50-199":n<1000?"200-999":"1000+";
+ const friends=numberFromLabel(/(?:^|\n)\s*([\d.,]{1,11})\s*(?:bạn bè|friends)(?:\s|$)/i);
+ const mutual=numberFromLabel(/(?:^|\n)\s*([\d.,]{1,11})\s*(?:bạn chung|mutual friends)(?:\s|$)/i);
+ const dates=[...document.querySelectorAll('article time[datetime], [role="article"] time[datetime]')]
+  .slice(0,20).map(el=>Date.parse(el.getAttribute("datetime")||""))
+  .filter(Number.isFinite).filter(t=>t<=Date.now()+86400000);
+ const ageDays=dates.length?Math.floor((Date.now()-Math.max(...dates))/86400000):null;
+ const postRecency=ageDays===null?"unknown":ageDays<90?"within_90d":ageDays<365?"90_to_364d":"365d_plus";
+ const joinedText=visible.match(/(?:đã tham gia facebook\s*(?:vào\s*)?(?:năm\s*)?|joined facebook\s*(?:in\s*)?)(20\d{2})/i);
+ const joinedYear=joinedText?Number(joinedText[1]):null;
+ const year=new Date().getFullYear();
+ const joinedEra=joinedYear===null||joinedYear>year?"unknown":
+   joinedYear>=year-2?"within_2y":joinedYear>=year-5?"2_to_5y":"5y_plus";
+ return {access:"page_visible",avatarSeen,locationListed,schoolListed,bioListed,
+   friendsBand:band(friends),mutualBand:band(mutual),
+   postRecency,joinedEra,visiblePostDates:dates.length?Math.min(10,dates.length):0};
 }
 async function loaded(browser,tabId,signal,timeout=MAX_WAIT_MS){
  if(signal?.aborted)throw Error("cancelled");
@@ -83,7 +114,16 @@ async function scan(url,priorId,browser=chrome,signal){
   const observation=read?.[0]?.result;
   if(!observation||!["page_visible","auth_required","unavailable"].includes(observation.access))
     return {tabId,access:"insufficient",avatarSeen:false};
-  return {tabId,access:observation.access,avatarSeen:observation.avatarSeen===true};
+  // Coarse, non-identifying signals only. Never return page text.
+  return {tabId,access:observation.access,avatarSeen:observation.avatarSeen===true,
+    locationListed:observation.locationListed===true,
+    schoolListed:observation.schoolListed===true,
+    bioListed:observation.bioListed===true,
+    friendsBand:observation.friendsBand||"unknown",
+    mutualBand:observation.mutualBand||"unknown",
+    postRecency:observation.postRecency||"unknown",
+    joinedEra:observation.joinedEra||"unknown",
+    visiblePostDates:Number(observation.visiblePostDates)||0};
  }catch(error){
    const msg=String(error?.message||"");
    return {tabId,access:signal?.aborted||msg==="cancelled"?"cancelled":

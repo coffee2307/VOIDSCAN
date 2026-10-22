@@ -8,12 +8,29 @@ const publicSignal=privacy.decide({
  school:"Private School",birthday:"2008-01-01",html:"<main>Personal data</main>"
 },base);
 assert.deepEqual(Object.keys(publicSignal).sort(),
- ["status","access","usable","reason","checkedAt","expiresAt"].sort());
+ ["status","access","usable","reason","signalCount","signals","checkedAt","expiresAt"].sort());
 assert.equal(publicSignal.status,"chưa đủ dữ liệu");
 assert.equal(publicSignal.usable,true);
-assert(!JSON.stringify(publicSignal).includes("school"));
+assert(!JSON.stringify(publicSignal).includes("Private School"));
 assert(!JSON.stringify(publicSignal).includes("09999"));
 assert(!JSON.stringify(publicSignal).includes("example.org"));
+const tabSignals=privacy.decide({
+  access:"page_visible",avatarSeen:true,locationListed:true,
+  schoolListed:true,bioListed:false,friendsBand:"200-999",mutualBand:"1-49",
+  postRecency:"within_90d",joinedEra:"5y_plus",
+  schoolName:"Trường không được lưu",email:"secret@example.test",
+  friendNames:["người A","người B"],postBody:"Nội dung riêng"
+},base);
+assert.equal(tabSignals.signalCount,7);
+assert.equal(tabSignals.usable,true);
+assert.equal(tabSignals.status,"chưa đủ dữ liệu");
+assert.equal(tabSignals.signals.friendsBand,"200-999");
+assert.equal(tabSignals.signals.postAge,"within_90d");
+assert(!JSON.stringify(tabSignals).includes("secret"));
+assert(!JSON.stringify(tabSignals).includes("Trường không"));
+assert(!JSON.stringify(tabSignals).includes("người A"));
+const reloaded=privacy.prune({"https://www.facebook.com/profile.php?id=100000000121":tabSignals},base+1000);
+assert.equal(Object.values(reloaded.records)[0].signalCount,7);
 const inaccessible=privacy.decide({access:"restricted",region:"local"},base);
 assert.equal(inaccessible.usable,false);
 const url="https://www.facebook.com/profile.php?id=100000000121";

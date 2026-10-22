@@ -56,7 +56,7 @@
     <div class="stat-red"><small>Nghi vấn · cần rà soát</small><strong id="flagged">0</strong></div>
     <div class="stat-green"><small>Chưa thấy dấu hiệu (đã có dữ liệu)</small><strong id="nosignal">0</strong></div>
     <div><small>Chưa đủ dữ liệu hồ sơ</small><strong id="insufficient">0</strong></div>
-    <div><small>Có dữ liệu bổ sung để kiểm tra</small><strong id="evidence-coverage">0 / 0</strong></div>
+    <div><small>Có trường dữ liệu hoặc tín hiệu tổng hợp</small><strong id="evidence-coverage">0 / 0</strong></div>
     <div><small>Cần kiểm tra lại reaction</small><strong id="quality-review">0</strong></div>
     <div><small>Đã phân tích CSV</small><strong id="checked">0</strong></div>
     <div><small>Số ảnh trong file</small><strong id="photos">0</strong></div>
@@ -67,14 +67,14 @@
   <section class="panel integrity-panel" aria-label="Auto Audit" style="margin-bottom:16px">
     <div class="section-title"><h2>Auto Audit · Danh sách hồ sơ</h2>
       <span class="small" id="auto-state">Sẵn sàng</span></div>
-    <p id="auto-progress" class="small">Nhập CSV rồi bắt đầu: Chrome sẽ mở một tab Facebook chạy lần lượt từng URL, chỉ đọc tín hiệu truy cập tối thiểu rồi đóng tab. Giữ trang kiểm toán mở.</p>
+    <p id="auto-progress" class="small">Nhập CSV rồi bắt đầu: Chrome sẽ mở một tab Facebook chạy lần lượt từng URL, đọc các tín hiệu tổng hợp đang hiển thị, đánh giá và chuyển URL; đóng tab khi xong. Giữ trang kiểm toán mở.</p>
     <div class="progress-track" role="progressbar" id="auto-track" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
       <div id="auto-bar" style="height:100%;width:0%;background:#5686d8"></div></div>
-    <p class="small">Sử dụng tab Chrome có phiên hiện tại để kiểm tra trang có mở được và avatar có hiển thị hay không; không thu thập nội dung cá nhân, bạn bè hay bài đăng. Trang đòi đăng nhập/xác minh sẽ dừng. Tình trạng hồ sơ vẫn là chưa đủ dữ liệu nếu không có bằng chứng đáng tin cậy.</p>
+    <p class="small">Sử dụng một tab Chrome trong phiên hiện tại để xác nhận trang và các chỉ báo tổng quát: avatar, có mục học vấn/nơi ở/bio, khoảng số bạn bè/bạn chung, độ mới của mốc bài và khoảng thời gian tham gia. Không lưu tên trường, nơi ở cụ thể, nội dung bài viết, danh sách bạn bè hoặc dữ liệu liên hệ. Trang đòi đăng nhập/xác minh sẽ dừng. Tình trạng hồ sơ vẫn là chưa đủ dữ liệu nếu không có bằng chứng đáng tin cậy.</p>
   </section>
   <p id="auto-diagnosis" class="notice">Chưa đánh giá độ bao phủ dữ liệu.</p>
   <p class="small">Auto Audit chỉ lưu quyết định và trạng thái tối thiểu (hết hạn sau 24 giờ), không lưu HTML hoặc nội dung hồ sơ. Xóa toàn bộ dữ liệu cục bộ không xóa các file CSV/Excel đã tải xuống.</p>
-  <p id="metadata-status" class="small">Đọc metadata công khai là tùy chọn; không vượt trang đăng nhập, CAPTCHA hay giới hạn truy cập.</p>
+  <p id="metadata-status" class="small">Trạng thái đọc từ tab Chrome. Trang yêu cầu đăng nhập/xác minh sẽ khiến Auto Audit dừng.</p>
   <p id="notice" class="notice">
   Hệ thống CHỈ phân tích thông tin có trong CSV, chưa kiểm tra nội dung trang cá nhân, bạn bè, nơi ở hoặc lịch sử hoạt động.
   Nếu chỉ có URL và reaction, trạng thái là “chưa đủ dữ liệu”. Lỗi nhãn reaction được đưa vào hàng đợi kiểm tra dữ liệu, không đánh đồng với tài khoản bot.
@@ -124,6 +124,8 @@
           <div>Bạn bè hiển thị<b id="friends-observed" style="font-size:14px">Chưa thấy</b></div>
           <div>Năm tham gia<b id="joined-observed" style="font-size:14px">Chưa thấy</b></div>
         </div>
+        <h3>Tín hiệu tổng hợp từ Auto Audit Chrome</h3>
+        <p id="auto-signal-detail" class="small">Chưa có dữ liệu từ lượt quét tab.</p>
         <h3>Lý do đánh giá</h3><div class="reasons" id="reasons"></div>
         <p class="small">Các chỉ số dùng để quyết định có cần rà soát, không được coi là xác suất bot. Một người bình chọn nhiều ảnh vẫn có thể hoàn toàn hợp lệ.</p>
         <label for="decision">Đánh giá thủ công (tùy chọn)</label>

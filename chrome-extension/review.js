@@ -75,6 +75,20 @@ function drawQueue(){
  }
  if(!filtered.some(x=>x.profileUrl===chosen))select(filtered[0].profileUrl,false);
 }
+function describeSignals(audit){
+ if(!audit?.signals)return "Chưa có tín hiệu tổng hợp từ tab Chrome.";
+ const t=audit.signals,names=[];
+ if(t.avatar)names.push("Avatar hiển thị");
+ if(t.localityField)names.push("Có mục nơi ở tự khai");
+ if(t.schoolField)names.push("Có mục học vấn tự khai");
+ if(t.bioField)names.push("Có mục tiểu sử");
+ if(t.friendsBand!=="unknown")names.push("Bạn bè: "+t.friendsBand);
+ if(t.mutualBand!=="unknown")names.push("Bạn chung: "+t.mutualBand);
+ if(t.postAge!=="unknown")names.push("Bài đăng có mốc ngày: "+t.postAge);
+ if(t.joinedEra!=="unknown")names.push("Thời gian tham gia: "+t.joinedEra);
+ return names.length?names.join(" · ")+" (không xác minh thật/giả)":
+   "Không quan sát được trường tổng hợp. Điều này không có nghĩa tài khoản không có thông tin.";
+}
 function select(url,redraw=true){
  const p=byUrl.get(url);if(!p)return;
  chosen=url;$("empty").hidden=true;$("editor").hidden=false;
@@ -98,6 +112,7 @@ function select(url,redraw=true){
  $("school-observed").textContent=p.educationObserved||"Chưa thấy";
  $("friends-observed").textContent=p.friendsCount===""?"Chưa thấy":fmt(p.friendsCount);
  $("joined-observed").textContent=p.joinedYear||"Chưa thấy";
+ $("auto-signal-detail").textContent=p.privacySignalSummary||"Chưa có tín hiệu tổng hợp từ tab Chrome.";
  $("reasons").replaceChildren(safeText("p",p.evidence));
  if(p.dataQuality)$("reasons").append(safeText("p","Chất lượng dữ liệu (không phải bằng chứng bot): "+p.dataQuality,"small"));
  $("decision").value=p.reviewerStatus;
@@ -185,6 +200,8 @@ async function scan(data,origin){
      row.privacyAccess=audit.access;
      row.privacyCheckedAt=audit.checkedAt;
      row.privacyDecision=audit.status;
+     row.privacySignalCount=audit.signalCount||0;
+     row.privacySignalSummary=describeSignals(audit);
      row.evidence+=" | "+PRIVACY.describe(audit);
    }
    results.push(row);byUrl.set(row.profileUrl,row);
@@ -201,16 +218,16 @@ async function scan(data,origin){
   if(ticket!==scanToken)return;
   $("progress-title").textContent="Hoàn tất phân tích CSV (chưa xác minh profile)";
   const supplied=results.filter(p=>p.evidenceQuality==="profile_observed").length;
-  $("evidence-coverage").textContent=fmt(supplied)+" / "+fmt(results.length);
-  $("auto-diagnosis").textContent=supplied===0&&results.length?
-    "CẢNH BÁO DỮ LIỆU: 0/"+fmt(results.length)+
-    " hồ sơ có trường bổ sung để đánh giá. "+
-    fmt(currentProgress.insufficient)+" hồ sơ đang CHƯA ĐỦ DỮ LIỆU, không phải "+
-    fmt(currentProgress.insufficient)+" tài khoản bình thường. "+
-    fmt(currentProgress.quality)+" hồ sơ có reaction cần kiểm tra lại. "+
-    "Auto Audit thử metadata công khai không đồng nghĩa đã xem hoạt động của hồ sơ.":
-    "Đã có trường bổ sung để đánh giá "+fmt(supplied)+"/"+fmt(results.length)+
-    " hồ sơ; những hồ sơ còn thiếu dữ liệu vẫn cần đối chiếu.";
+  const tabObserved=results.filter(p=>p.privacySignalCount>0).length;
+  $("evidence-coverage").textContent=fmt(supplied+results.filter(p=>p.evidenceQuality!=="profile_observed"&&p.privacySignalCount>0).length)+" / "+fmt(results.length);
+  $("auto-diagnosis").textContent=(
+    "Độ bao phủ: "+fmt(tabObserved)+"/"+fmt(results.length)+
+    " URL có ít nhất một tín hiệu tổng hợp từ tab Chrome; "+
+    fmt(supplied)+" có dữ liệu hồ sơ từ CSV/quan sát được cung cấp. "+
+    fmt(currentProgress.insufficient)+" hồ sơ CHƯA ĐỦ DỮ LIỆU; "+
+    fmt(currentProgress.quality)+" cần đối chiếu reaction. "+
+    "Tín hiệu về giao diện không xác minh được thật/giả; không được coi 0 nghi vấn là 0 bot."
+  );
   drawQueue();
   msg("Hoàn thành "+fmt(currentProgress.done)+" URL trong CSV của phạm vi đã chọn. "+
    fmt(currentProgress.flagged)+" có tín hiệu hồ sơ; "+
