@@ -1,13 +1,13 @@
 (() => {
 "use strict";
 const $=id=>document.getElementById(id);
-const FILE=window.VoidscanFileAudit,LIB=window.VoidscanAudit, XLSX=window.VoidscanXlsx,INTEGRITY=window.VoidscanIntegrity,PROFILE=window.VoidscanProfileImport,PUBLIC=window.VoidscanPublicMetadata,AUTO=window.VoidscanAutoAudit,COVERAGE=window.VoidscanCoverage,PRIVACY=window.VoidscanPrivacyAudit;
+const FILE=window.VoidscanFileAudit,LIB=window.VoidscanAudit, XLSX=window.VoidscanXlsx,INTEGRITY=window.VoidscanIntegrity,PROFILE=window.VoidscanProfileImport,PUBLIC=window.VoidscanPublicMetadata,AUTO=window.VoidscanAutoAudit,COVERAGE=window.VoidscanCoverage,PRIVACY=window.VoidscanPrivacyAudit,TAB=window.VoidscanTabAudit;
 const STORAGE_REACTIONS="voidscan_reactions_v1",STORAGE_PENDING="voidscan_pending_reactions_v1";
 const STORAGE_DECISIONS="voidscan_screening_reviews_v1",STORAGE_COUNTS="voidscan_visible_reaction_counts_v2",PROFILE_STORE="voidscan_profile_observations_v1",MAX_CSV_BYTES=15*1024*1024;
 let scanToken=0,source=[],allSource=[],sourceOrigin="",profiles=[],results=[],byUrl=new Map(),chosen="",decisionMap={};
 let sourceLabel="Dữ liệu trong Chrome",integrityReport=null,profileSource=[];
-let metadataBusy=false,metadataStop=false;const ATTEMPT_STORE="voidscan_public_metadata_attempts_v1";
-const AUTO_STORE="voidscan_auto_audit_state_v1",AUDIT_STORE="voidscan_ephemeral_audit_v1";
+let metadataBusy=false,metadataStop=false;const ATTEMPT_STORE="voidscan_tab_audit_attempts_v1";
+const AUTO_STORE="voidscan_auto_tab_state_v1",AUDIT_STORE="voidscan_ephemeral_tab_audit_v1";
 let autoBusy=false,autoAbort=null,autoPauseRequested=false,autoSession=null;
 let reviewTabId=null,reviewTabTarget="";
 const stateText=t=>{$("manual-review-state").textContent=t;};
@@ -266,8 +266,8 @@ async function showCoverageReport(){
  const summary=COVERAGE.assess(urls,saved[ATTEMPT_STORE]||{},
    {...(saved[PROFILE_STORE]||{}),...usable});
  const {counters:c,outcomes}=summary;
- $("metadata-status").textContent="Tiến độ truy xuất metadata: "+fmt(summary.attemptedTotal)+
-   " URL đã thử · "+fmt(c.withEvidence)+" có dữ liệu bổ sung · "+fmt(c.unattempted)+
+ $("metadata-status").textContent="Tiến độ tab Facebook: "+fmt(summary.attemptedTotal)+
+   " URL đã thử · "+fmt(c.withEvidence)+" có tín hiệu trang · "+fmt(c.unattempted)+
    " chưa thử · "+fmt(c.denied)+" bị từ chối/giới hạn · "+
    fmt(c.errors)+" lỗi truy cập · "+fmt(c.missingFields)+" HTML thiếu trường dùng được."+
    " Chi tiết: "+Object.entries(outcomes).map(([k,v])=>k+": "+fmt(v)).join("; ");
@@ -306,7 +306,7 @@ function showAutoProgress(state){
  $("auto-state").textContent=names[s.status]||"Chưa có hàng đợi";
  $("auto-progress").textContent=total?
   fmt(done)+"/"+fmt(total)+" URL · "+pct+"% · "+
-  fmt(s.usable)+" có metadata dùng được · "+fmt(s.unavailable)+" thiếu dữ liệu/không thể đọc · "+
+  fmt(s.usable)+" có tín hiệu ảnh đại diện · "+fmt(s.unavailable)+" chưa đủ tín hiệu/không tải được · "+
   fmt(s.skipped)+" được bỏ qua vì đã xử lý/có dữ liệu. "+
   (s.stopReason||""):
   "Nhập CSV reaction, bấm Auto Audit một lần. Tiến độ được lưu trong Chrome.";
@@ -325,43 +325,45 @@ async function persistAuto(queue,decisions,attempts){
 async function startAutoAudit(){
  if(autoBusy)return;
  if(metadataBusy){msg("Vui lòng đợi lần thử metadata 10 hồ sơ hoàn tất.");return;}
- if(!AUTO||!PUBLIC||!PRIVACY){msg("Chưa tải được bộ xử lý dữ liệu tối thiểu.");return;}
+ if(!AUTO||!TAB||!PRIVACY){msg("Chưa tải được bộ điều khiển tab Chrome.");return;}
  const stored=(await chrome.storage.local.get(AUTO_STORE))[AUTO_STORE];
  const candidate=allSource.length?AUTO.plan(FILE.normaliseRows(allSource).rows):stored?.urls||[];
  if(!candidate.length){msg("Chưa có URL. Nhập CSV reaction hoặc lấy dữ liệu từ tiện ích trước.");return;}
  const approved=await chrome.permissions.request({origins:["https://www.facebook.com/*"]});
- if(!approved){msg("Cần cấp quyền Facebook để truy cập metadata công khai. Không có quyền sẽ không chạy.");return;}
+ if(!approved){msg("Cần cấp quyền trang Facebook để Chrome đọc được trạng thái trang mở.");return;}
  let q=AUTO.create(candidate,stored);
  if(q.index>=q.urls.length)q=AUTO.create(candidate,null);
  q.status="running";q.stopReason="";
  autoBusy=true;autoPauseRequested=false;autoAbort=new AbortController();
- const state=await chrome.storage.local.get([PROFILE_STORE,ATTEMPT_STORE,AUDIT_STORE]);
- const oldObservations=state[PROFILE_STORE]||{},attempts=state[ATTEMPT_STORE]||{};
+ const state=await chrome.storage.local.get([ATTEMPT_STORE,AUDIT_STORE]);
+ const attempts=state[ATTEMPT_STORE]||{};
  const decisions=PRIVACY.prune(state[AUDIT_STORE]).records;
- let consecutiveNetworkErrors=0;
+ let consecutiveNetworkErrors=0,tabId=null;
  try{
   await persistAuto(q,decisions,attempts);
   while(q.index<q.urls.length){
    if(autoPauseRequested){q.status="paused";q.stopReason="Đã tạm dừng theo yêu cầu.";break;}
-   const url=q.urls[q.index],existing=oldObservations[url]||decisions[url],attempt=attempts[url];
+   const url=q.urls[q.index],existing=decisions[url],attempt=attempts[url];
    if(existing||AUTO.reuseAttempt(attempt)){
      q.skipped++;q.index++;
      await persistAuto(q,decisions,attempts);
      continue;
    }
-   // Public HTML without cookies; no authenticated tab scraping.
-   const outcome=await PUBLIC.get(url,fetch,DOMParser,autoAbort.signal);
+   // Reuse one real Chrome tab; no personal page content is extracted.
+   const outcome=await TAB.scan(url,tabId,chrome,autoAbort.signal);
+   tabId=outcome.tabId;
    if(outcome.access==="cancelled"||autoPauseRequested){
      q.status="paused";q.stopReason="Đã tạm dừng.";break;
    }
    attempts[url]={at:new Date().toISOString(),status:outcome.access};
-   if(outcome.access==="network_error")consecutiveNetworkErrors++;
+   if(["navigation_error","timeout"].includes(outcome.access))consecutiveNetworkErrors++;
    else consecutiveNetworkErrors=0;
-   if(AUTO.halt(outcome.access,consecutiveNetworkErrors)){
+   if(["auth_required","restricted"].includes(outcome.access)||
+      consecutiveNetworkErrors>=3){
      q.status="blocked";
-     q.stopReason=outcome.access==="rate_limited"?"Facebook giới hạn tốc độ; không thử vượt chặn.":
-       outcome.access==="restricted"?"Facebook yêu cầu đăng nhập/xác minh; không thử vượt chặn.":
-       "Nhiều lỗi mạng liên tiếp; đã dừng để tránh tiếp tục truy xuất.";
+     q.stopReason=["auth_required","restricted"].includes(outcome.access)?
+       "Facebook yêu cầu đăng nhập/xác minh; Auto Audit đã dừng.":
+       "Liên tiếp không tải được trang Facebook; dừng để tránh truy cập quá mức.";
      await persistAuto(q,decisions,attempts);break;
    }
    const decision=PRIVACY.decide(outcome);
@@ -380,14 +382,16 @@ async function startAutoAudit(){
   else if(q.status==="running"){q.status="paused";q.stopReason="Tạm dừng.";}
   await persistAuto(q,decisions,attempts);
   if(allSource.length)await scanScope();
-  const resultText="Auto Audit: "+fmt(q.index)+"/"+fmt(q.urls.length)+" URL, "+
-   fmt(q.usable)+" có metadata dùng được, "+fmt(q.unavailable)+" chưa đủ dữ liệu. "+q.stopReason;
+  const resultText="Auto Audit Chrome: "+fmt(q.index)+"/"+fmt(q.urls.length)+" URL, "+
+   fmt(q.usable)+" có ảnh đại diện nhìn thấy, "+fmt(q.unavailable)+
+   " chưa đủ tín hiệu/không tải được. "+q.stopReason;
   msg(resultText);
  }catch(e){
   q.status="paused";q.stopReason="Lỗi xử lý: "+(e.message||"không xác định");
   await persistAuto(q,decisions,attempts).catch(()=>{});
   msg(q.stopReason);
  }finally{
+  await TAB.close(tabId,chrome).catch(()=>{});
   autoBusy=false;autoAbort=null;
   showAutoProgress(q);
  }
@@ -417,6 +421,10 @@ async function purgeExpiredAudit(){
  await chrome.storage.local.set({
    [AUDIT_STORE]:decisions,[ATTEMPT_STORE]:attempts,[PROFILE_STORE]:observed
  });
+ await chrome.storage.local.remove([
+   "voidscan_public_metadata_attempts_v1","voidscan_auto_audit_state_v1",
+   "voidscan_ephemeral_audit_v1"
+ ]);
  const last=Date.parse(stored[AUTO_STORE]?.updatedAt||"");
  if(stored[AUTO_STORE]&&(!Number.isFinite(last)||now-last>=PRIVACY.TTL_MS))
    await chrome.storage.local.remove(AUTO_STORE);
@@ -426,6 +434,8 @@ async function eraseStoredAudit(){
  await chrome.storage.local.remove([
   STORAGE_REACTIONS,STORAGE_PENDING,STORAGE_DECISIONS,STORAGE_COUNTS,
   PROFILE_STORE,ATTEMPT_STORE,AUTO_STORE,AUDIT_STORE,
+  "voidscan_public_metadata_attempts_v1","voidscan_auto_audit_state_v1",
+  "voidscan_ephemeral_audit_v1",
   "voidscan_photo_links_v1","voidscan_active_photo_v1"
  ]);
  profileSource=[];allSource=[];source=[];results=[];byUrl.clear();

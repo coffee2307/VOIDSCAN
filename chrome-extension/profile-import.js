@@ -102,6 +102,7 @@ function enrich(reactionRows,sourceRows){
    if(["profileUrl","userId","displayName"].includes(k))continue;
    if(v!==""&&v!==undefined)merged[k]=v;
   }
+  if(!merged.avatarEvidence)merged.avatarEvidence="unknown";
   return merged;
  });
  return {rows,matchedRows:matched,sourceAccounts:loaded.sourceAccounts,skippedAccounts:loaded.skipped};

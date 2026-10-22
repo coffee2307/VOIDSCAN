@@ -5,7 +5,8 @@
  root.VoidscanCoverage=api;
 })(typeof globalThis!=="undefined"?globalThis:this,function(){
 "use strict";
-const CATEGORIES=["public_metadata","insufficient","restricted","rate_limited",
+const CATEGORIES=["public_metadata","page_visible","auth_required","unavailable",
+ "timeout","navigation_error","insufficient","restricted","rate_limited",
  "network_error","http_error","large","invalid","cancelled","unknown"];
 function category(attempt){
  const s=String(attempt?.status||"");
@@ -27,8 +28,8 @@ function assess(urls,attempts,profileMap){
   else if(att){
    counters.attempted++;
    if(status==="public_metadata")counters.publicMetadataNoEvidence++;
-   else if(["restricted","rate_limited"].includes(status))counters.denied++;
-   else if(["network_error","http_error","large","invalid"].includes(status))counters.errors++;
+   else if(["restricted","rate_limited","auth_required"].includes(status))counters.denied++;
+   else if(["network_error","navigation_error","timeout","http_error","large","invalid"].includes(status))counters.errors++;
    else if(status==="insufficient")counters.missingFields++;
   } else counters.unattempted++;
   outcomes[status]=(outcomes[status]||0)+1;

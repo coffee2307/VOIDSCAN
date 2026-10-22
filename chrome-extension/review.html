@@ -10,7 +10,7 @@
   <p>Nhập CSV → tự sàng lọc hồ sơ → xuất bảng kết quả</p></div>
   <div class="topactions">
     <button id="source-local">Lấy dữ liệu từ tiện ích</button>
-    <button id="auto-start" type="button" class="primary">Bắt đầu Auto Audit toàn bộ</button>
+    <button id="auto-start" type="button" class="primary">Bắt đầu quét tuần tự trong Chrome</button>
     <button id="auto-pause" type="button" disabled>Tạm dừng</button>
     <button id="auto-export" type="button">Xuất nhật ký Auto Audit</button>
     <button id="privacy-erase" type="button">Xóa toàn bộ dữ liệu kiểm toán trong Chrome</button>
@@ -67,10 +67,10 @@
   <section class="panel integrity-panel" aria-label="Auto Audit" style="margin-bottom:16px">
     <div class="section-title"><h2>Auto Audit · Danh sách hồ sơ</h2>
       <span class="small" id="auto-state">Sẵn sàng</span></div>
-    <p id="auto-progress" class="small">Nhập CSV, nhấn “Bắt đầu Auto Audit toàn bộ” một lần để thử metadata công khai theo thứ tự. Giữ tab kiểm toán mở trong lúc chạy.</p>
+    <p id="auto-progress" class="small">Nhập CSV rồi bắt đầu: Chrome sẽ mở một tab Facebook chạy lần lượt từng URL, chỉ đọc tín hiệu truy cập tối thiểu rồi đóng tab. Giữ trang kiểm toán mở.</p>
     <div class="progress-track" role="progressbar" id="auto-track" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
       <div id="auto-bar" style="height:100%;width:0%;background:#5686d8"></div></div>
-    <p class="small">Không sử dụng cookie phiên, không mở hồ sơ riêng tư, không vượt giới hạn truy cập. Hồ sơ không trả metadata sẽ ở trạng thái chưa đủ dữ liệu, không bị đánh dấu bot.</p>
+    <p class="small">Sử dụng tab Chrome có phiên hiện tại để kiểm tra trang có mở được và avatar có hiển thị hay không; không thu thập nội dung cá nhân, bạn bè hay bài đăng. Trang đòi đăng nhập/xác minh sẽ dừng. Tình trạng hồ sơ vẫn là chưa đủ dữ liệu nếu không có bằng chứng đáng tin cậy.</p>
   </section>
   <p id="auto-diagnosis" class="notice">Chưa đánh giá độ bao phủ dữ liệu.</p>
   <p class="small">Auto Audit chỉ lưu quyết định và trạng thái tối thiểu (hết hạn sau 24 giờ), không lưu HTML hoặc nội dung hồ sơ. Xóa toàn bộ dữ liệu cục bộ không xóa các file CSV/Excel đã tải xuống.</p>
@@ -149,6 +149,7 @@
 <script src="auto-audit.js"></script>
 <script src="auto-coverage.js"></script>
 <script src="privacy-audit.js"></script>
+<script src="tab-audit.js"></script>
 <script src="reaction-integrity.js"></script>
 <script src="xlsx-export.js"></script>
 <script src="review.js"></script>

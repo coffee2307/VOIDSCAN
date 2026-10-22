@@ -7,14 +7,15 @@
 })(typeof globalThis!=="undefined"?globalThis:this,function(){
 "use strict";
 const TTL_MS=24*60*60*1000;
-const ACCESS=new Set(["public_metadata","insufficient","restricted","rate_limited",
+const ACCESS=new Set(["public_metadata","page_visible","auth_required","unavailable","timeout","navigation_error","insufficient","restricted","rate_limited",
   "network_error","http_error","large","invalid","cancelled","unknown"]);
 function decide(observation,now=Date.now()){
  const access=ACCESS.has(observation?.access)?observation.access:"unknown";
- const usable=access==="public_metadata"&&
-   (["local","other"].includes(observation.region)||observation.hasBio===true);
+ const usable=(access==="public_metadata"&&
+   (["local","other"].includes(observation.region)||observation.hasBio===true))||
+   (access==="page_visible"&&observation.avatarSeen===true);
  // No data in this reader substantiates either "real" or "bot".
- const reason=access!=="public_metadata"?"no_access":
+ const reason=!["public_metadata","page_visible"].includes(access)?"no_access":
    usable?"limited_public_signals":"no_profile_signals";
  return {status:"chưa đủ dữ liệu",access,usable,reason,
    checkedAt:new Date(now).toISOString(),

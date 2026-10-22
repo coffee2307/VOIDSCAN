@@ -1,4 +1,17 @@
-# VOIDSCAN Reaction Audit — Chrome Extension 0.7.0
+# VOIDSCAN Reaction Audit — Chrome Extension 0.8.0
+
+## 0.8.0 — Điều hướng tab Chrome tự động (chế độ bảo vệ dữ liệu)
+
+- Nhập CSV reaction, bấm **Bắt đầu quét tuần tự trong Chrome**. Tiện ích tạo đúng một tab Facebook ở nền, tải từng URL bằng Chrome và tái sử dụng cùng tab cho các URL tiếp theo; khi chạy xong hoặc tạm dừng thì đóng tab.
+- Thay truy vấn fetch() metadata bằng tab tải giao diện Facebook thật; chỉ phát hiện trạng thái trang và liệu ảnh đại diện có hiển thị với nhãn rõ ràng. Không thu thập tên trường học, bạn bè, nội dung bài viết, số điện thoại, email, ngày sinh hoặc dữ liệu riêng tư của người khác.
+- Nếu bị chuyển sang đăng nhập, checkpoint hoặc trang bên ngoài Facebook, hệ thống dừng; sau ba lỗi tải trang liên tiếp cũng dừng. Hỗ trợ tạm dừng/tiếp tục và lưu trạng thái mỗi URL.
+- Nhật ký tab mới tách riêng khỏi những lần thử metadata cũ, tránh bỏ qua URL chỉ vì đã truy xuất metadata trước đây. Khi khởi động, dọn các kho metadata cũ, duy trì chính sách tối thiểu dữ liệu.
+- Kết quả truy cập và sự hiện diện của avatar (nếu có) chỉ là tín hiệu yếu; quyết định phân loại thật/giả vẫn là **chưa đủ dữ liệu** nếu không có bằng chứng khác. Không dùng việc tải trang thành công làm chứng cứ xác minh danh tính.
+- Chỉ lưu tối đa 24 giờ các trạng thái tổng quát gắn URL; không lưu HTML trang, ảnh, chuỗi tên hoặc nội dung hồ sơ. Bấm xóa dữ liệu cục bộ để xóa cả kết quả và hàng đợi.
+- Chrome cần cấp quyền Facebook một lần khi bắt đầu và tab trung tâm kiểm toán phải còn mở. Đã kiểm thử bằng Chrome giả lập, chưa xác minh Facebook thực tế luôn cho phép đọc từng trang.
+- Kiểm thử: node chrome-extension/test-tab-audit.cjs; python tests/auto_audit_browser_smoke.py; bộ hồi quy cũ.
+
+
 
 ## 0.7.0 — Auto Audit tối thiểu dữ liệu và xóa cục bộ
 
