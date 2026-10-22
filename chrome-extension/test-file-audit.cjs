@@ -20,7 +20,7 @@ const one=scored.find(x=>x.profileUrl===profile(1));
 assert.equal(one.status,"nghi vấn");
 assert(one.evidence.includes("Nhiều loại reaction"));
 const empty=scored.find(x=>x.profileUrl===profile(500));
-assert.equal(empty.status,"không có dấu hiệu");
+assert.equal(empty.status,"chưa đủ dữ liệu");
 assert(empty.dataQuality.includes("reaction UNKNOWN"));
 assert.equal(empty.unknownRows,1);
 const large=scored.find(x=>x.profileUrl===profile(501));
@@ -36,8 +36,23 @@ assert.equal(signals.filter(x=>x.status==="nghi vấn").length,0);
 assert.equal(signals.filter(x=>x.nameCollisionPhotoCount>0).length,2);
 assert(signals.every(x=>x.botConfirmed==="CHƯA_XÁC_MINH"));
 const regular=scored.find(x=>x.profileUrl===profile(100));
-assert.equal(regular.status,"không có dấu hiệu");
+assert.equal(regular.status,"chưa đủ dữ liệu");
 assert.equal(f.scoreProfile(prepared.profiles[0],10,{[profile(1)]:{status:"needs_review"}}).status,"nghi vấn");
+const localityWithAlert=f.prepare([
+ {photoId:pic(0),profileUrl:profile(830),reaction:"LOVE",
+  regionContext:"local",avatarEvidence:"absent_observed"}
+]);
+assert.equal(f.scoreProfile(localityWithAlert.profiles[0],1,{}).status,"nghi vấn",
+  "Địa điểm tự khai không được phép xóa cảnh báo khác");
+const emptyFour=f.prepare([
+ {photoId:pic(0),profileUrl:profile(842),reaction:"LOVE"},
+ {photoId:pic(1),profileUrl:profile(843),reaction:"LIKE"},
+ {photoId:pic(2),profileUrl:profile(844),reaction:"LOVE"},
+ {photoId:pic(3),profileUrl:profile(845),reaction:"WOW"},
+]);
+assert(emptyFour.profiles.every(p=>
+ f.scoreProfile(p,emptyFour.photoTotal,{}).status==="chưa đủ dữ liệu"),
+ "Số ảnh của toàn bộ CSV không đủ để xác minh từng tài khoản");
 assert(!f.COLUMNS.some(x=>/birth|phone|email|gender/i.test(x.key)));
 assert(f.COLUMNS.find(x=>x.key==="status").label==="Trạng thái");
 const commaCsv='\ufeffprofileUrl,photoId,reaction,displayName\r\n'+
@@ -67,7 +82,7 @@ const csvRows=scored.map(row=>Object.fromEntries(f.COLUMNS.map(col=>[col.label,r
 const csv=base.csv(csvRows,headerNames);
 assert(csv.startsWith("\ufeff"));
 assert(csv.includes("nghi vấn"));
-assert(csv.includes("không có dấu hiệu"));
+assert(csv.includes("chưa đủ dữ liệu"));
 const onePhoto=Array.from({length:190},(_,i)=>({
  photoId:pic(0),profileUrl:profile(i+1000),reaction:i<12?"UNKNOWN":"LIKE",
  avatarUrl:"",displayName:"Người tham gia "+i

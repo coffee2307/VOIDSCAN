@@ -72,7 +72,8 @@ class ImportedCsvBrowser(unittest.TestCase):
     page.wait_for_function('document.getElementById("total").textContent==="13"',timeout=20000)
     self.assertEqual(page.locator("#total").inner_text(),"13")
     self.assertEqual(page.locator("#flagged").inner_text(),"1") # conflicting reactions; UNKNOWN is data quality only
-    self.assertEqual(page.locator("#nosignal").inner_text(),"12")
+    self.assertEqual(page.locator("#nosignal").inner_text(),"1")
+    self.assertEqual(page.locator("#insufficient").inner_text(),"11")
     self.assertEqual(page.locator("#checked").inner_text(),"13")
     self.assertEqual(page.locator("#photos").inner_text(),"10")
     self.assertEqual(page.locator("#progress-number").inner_text(),"13 / 13 tài khoản")

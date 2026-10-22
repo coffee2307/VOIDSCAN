@@ -197,13 +197,16 @@ function scoreProfile(p,photoTotal,decision){
  const previous=decision&&decision[p.profileUrl]||{};
  if(previous.status==="needs_review")reasons.push("Được người kiểm duyệt đánh dấu cần kiểm tra");
  const localMatch=p.regionContext==="local";
- if(localMatch&&previous.status!=="needs_review"&&conflicts.length===0)reasons.length=0;
+ // A self-declared location is not independently verified and must not suppress
+ // stronger review evidence from the actual data.
  const suspected=reasons.length>0;
  const metadataObserved=p.avatarEvidence!=="unknown"||
    p.regionContext!=="unknown"||p.profileFlagsObserved.size>0||
    p.friendsCount!==null||p.followingCount!==null||
    p.mutualFriendsNumber!==null||Boolean(p.latestVisiblePostAt)||Boolean(p.joinedYear);
- const behavioralObserved=photoTotal>=4||conflicts.length>0;
+ // Dataset-wide photo count is not an account-specific observation.
+ const behavioralObserved=conflicts.length>0||
+   (photoTotal>=4&&photoCount>=3);
  const sufficient=metadataObserved||behavioralObserved;
  const classification=suspected?LABEL_SUSPECT:
     (sufficient?LABEL_CLEAR:LABEL_INSUFFICIENT);

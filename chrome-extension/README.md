@@ -1,4 +1,14 @@
-# VOIDSCAN Reaction Audit — Chrome Extension 0.8.1
+# VOIDSCAN Reaction Audit — Chrome Extension 0.8.2
+
+## 0.8.2 — Chẩn đoán sai âm tính từ dữ liệu reaction một ảnh
+
+- Không gộp toàn bộ người dùng vào nhóm "chưa thấy dấu hiệu" chỉ vì CSV chứa từ bốn ảnh: phải có hành vi nhiều ảnh **của cùng một tài khoản** hoặc bằng chứng thực sự quan sát được.
+- Khu vực sinh sống tự khai không còn xóa bỏ các cảnh báo kiểm toán khác.
+- Giao diện nói rõ 0 nghi vấn không đồng nghĩa 0 tài khoản ảo, đặc biệt khi file chỉ chứa một ảnh và không có dữ liệu hồ sơ bổ sung.
+- Nhãn được đổi để phân biệt "có bằng chứng cần rà soát" và "chưa thấy dấu hiệu" với kết luận tài khoản ảo/thật.
+- Lưu ý: không có thuật toán đáng tin cậy nào suy được 250+ tài khoản ảo từ duy nhất một CSV reaction không có nhãn đối chứng. Tập đối chứng phải có ID các tài khoản đã biết để đo recall; 90 reaction UNKNOWN là lỗi phân loại dữ liệu nguồn.
+
+
 
 ## 0.8.1 — Tín hiệu tổng hợp trên tab đang mở, không giữ dữ liệu cá nhân thô
 

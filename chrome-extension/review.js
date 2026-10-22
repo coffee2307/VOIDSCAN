@@ -221,6 +221,11 @@ async function scan(data,origin){
   const tabObserved=results.filter(p=>p.privacySignalCount>0).length;
   $("evidence-coverage").textContent=fmt(supplied+results.filter(p=>p.evidenceQuality!=="profile_observed"&&p.privacySignalCount>0).length)+" / "+fmt(results.length);
   $("auto-diagnosis").textContent=(
+    (prepared.photoTotal===1?
+      "CHƯA THỂ KIỂM ĐỊNH BOT CÁ NHÂN: CSV chỉ chứa 1 ảnh; "+
+      "không có lịch sử tương tác giữa nhiều ảnh. ":"")+
+    (currentProgress.flagged===0&&currentProgress.insufficient===currentProgress.total&&currentProgress.total?
+      "0 hồ sơ được đánh dấu không có nghĩa 0 tài khoản ảo. ":"")+
     "Độ bao phủ: "+fmt(tabObserved)+"/"+fmt(results.length)+
     " URL có ít nhất một tín hiệu tổng hợp từ tab Chrome; "+
     fmt(supplied)+" có dữ liệu hồ sơ từ CSV/quan sát được cung cấp. "+
